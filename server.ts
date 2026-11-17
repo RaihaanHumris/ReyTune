@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'fs';
 import path from 'path';
 import { Readable } from 'stream';
 import { fileURLToPath } from 'url';
@@ -1020,6 +1021,22 @@ self.addEventListener('activate', (event) => {
   // Clean static-style MP3 route (/audio/tracks/:trackParam) for instant mobile <audio> playback
   app.all('/audio/tracks/:trackParam', async (req, res) => {
     const rawParam = String(req.params.trackParam || '').replace(/\.mp3$/i, '');
+    const isDownload = req.query.download === '1';
+
+    // 1. If a static MP3 file exists on disk in /public/audio/tracks/, serve it natively via sendFile (identical to /audio/midnight-rain.mp3)
+    const safeBasename = rawParam.replace(/[^a-zA-Z0-9_-]/g, '');
+    const staticDiskPath = path.resolve(
+      __dirname,
+      'public/audio/tracks',
+      `${safeBasename}.mp3`
+    );
+    if (!isDownload && safeBasename && fs.existsSync(staticDiskPath)) {
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.sendFile(staticDiskPath);
+      return;
+    }
+
     const track = ALL_INDEXED_MAP.get(rawParam) || PRE_ENRICHED_DRIVE_MAP.get(rawParam);
     const queryUrl = String(req.query.url || '');
     const targetUrl =
@@ -1036,7 +1053,6 @@ self.addEventListener('activate', (event) => {
       return;
     }
 
-    const isDownload = req.query.download === '1';
     const title = String(req.query.title || track?.title || 'Track');
     const artist = String(req.query.artist || track?.artist || 'ReyTune');
 

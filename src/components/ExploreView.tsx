@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ArrowDownToLine,
   FolderSync,
@@ -7,6 +7,7 @@ import {
   Radio,
   RefreshCw,
   Search,
+  Upload,
   WifiOff,
   X,
 } from 'lucide-react';
@@ -54,6 +55,7 @@ interface ExploreViewProps {
   onToggleLike: (trackId: string) => void;
   onAddToPlaylist: (track: Track) => void;
   onSwitchToOnline: () => void;
+  onImportLocalFiles?: (files: FileList) => void;
 }
 
 export const ExploreView: React.FC<ExploreViewProps> = ({
@@ -82,9 +84,11 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
   onToggleLike,
   onAddToPlaylist,
   onSwitchToOnline,
+  onImportLocalFiles,
 }) => {
   const [showDriveInput, setShowDriveInput] = useState(false);
   const [customDriveInput, setCustomDriveInput] = useState(driveFolderUrl);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const showFeaturedSpotlight =
     !isOfflineMode &&
@@ -155,6 +159,32 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
+              {onImportLocalFiles && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="audio/*,.mp3,.m4a,.wav,.ogg,.flac"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        onImportLocalFiles(e.target.files);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Pilih file MP3/Audio langsung dari memori HP atau Laptop"
+                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#10B981]/15 hover:bg-[#10B981]/25 border border-[#10B981]/30 text-[11px] font-semibold text-[#10B981] transition-colors"
+                  >
+                    <Upload size={12} />
+                    <span>MP3 HP</span>
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => setShowDriveInput((prev) => !prev)}

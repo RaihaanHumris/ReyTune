@@ -88,6 +88,14 @@ function getProxyAudioSrc(track: Track): string {
 }
 
 function getPlayableAudioSrc(track: Track): string {
+  // Hearthis.at CDN streams support cross-site <audio> directly with HTTP 206 Partial Content
+  // and zero cookie requirements, bypassing any proxy restrictions.
+  if (
+    track.audioUrl.includes('hearthis.at/') ||
+    track.audioUrl.includes('hearthis.app/')
+  ) {
+    return getDirectAudioSrc(track);
+  }
   return getProxyAudioSrc(track);
 }
 
@@ -1294,6 +1302,75 @@ export default function App() {
     [showToast]
   );
 
+  // Import local MP3 / audio files directly from user's mobile phone or laptop
+  const handleImportLocalFiles = useCallback(
+    async (files: FileList) => {
+      const fileArray = Array.from(files);
+      if (fileArray.length === 0) return;
+
+      const importedTracks: Track[] = [];
+      for (let i = 0; i < fileArray.length; i++) {
+        const file = fileArray[i];
+        const rawName = file.name.replace(/\.(mp3|m4a|wav|ogg|flac|aac)$/i, '').trim();
+        let artist = 'File Musik HP';
+        let title = rawName || `Lagu Lokal ${i + 1}`;
+        if (rawName.includes(' - ')) {
+          const parts = rawName.split(' - ');
+          artist = parts[0].trim() || 'File Musik HP';
+          title = parts.slice(1).join(' - ').trim() || rawName;
+        }
+        const trackId = `local-device-${Date.now()}-${i}`;
+        const blobUrl = URL.createObjectURL(file);
+        offlineBlobUrlsRef.current[trackId] = blobUrl;
+
+        const sizeMb = Math.max(0.5, Math.round((file.size / (1024 * 1024)) * 10) / 10);
+        const estimatedDuration = Math.max(120, Math.round((file.size * 8) / 128000));
+
+        const newTrack: Track = {
+          id: trackId,
+          title,
+          artist,
+          album: 'Memori Perangkat (Offline)',
+          genre: 'Lagu Indo',
+          durationSec: estimatedDuration,
+          fileSizeMb: sizeMb,
+          coverUrl:
+            'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
+          audioUrl: blobUrl,
+          source: 'local',
+          isPreview: false,
+          featured: true,
+        };
+
+        await saveOfflineTrackBlob(newTrack, file);
+        importedTracks.push(newTrack);
+      }
+
+      if (importedTracks.length > 0) {
+        const newMap: Record<string, Track> = {};
+        const newIds: string[] = [];
+        for (const t of importedTracks) {
+          newMap[t.id] = t;
+          newIds.push(t.id);
+        }
+        setSavedTrackMap((prev) => ({ ...newMap, ...prev }));
+        setDownloadedIdList((prev) => Array.from(new Set([...newIds, ...prev])));
+        setOnlineFeedTracks((prev) => [...importedTracks, ...prev]);
+
+        const first = importedTracks[0];
+        setCurrentTrackId(first.id);
+        setCurrentTime(0);
+        setDuration(first.durationSec);
+        triggerSyncPlayback(first);
+        showToast(
+          `Berhasil memuat & memutar "${first.title}" dari perangkat`,
+          'success'
+        );
+      }
+    },
+    [showToast, triggerSyncPlayback]
+  );
+
   const handleDeleteDownload = useCallback(
     (track: Track) => {
       if (offlineBlobUrlsRef.current[track.id]) {
@@ -1545,6 +1622,7 @@ export default function App() {
                   onToggleLike={handleToggleLike}
                   onAddToPlaylist={(track) => setPlaylistPickerTrack(track)}
                   onSwitchToOnline={() => setIsOfflineMode(false)}
+                  onImportLocalFiles={(files) => void handleImportLocalFiles(files)}
                 />
               </motion.div>
             )}
