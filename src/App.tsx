@@ -1007,7 +1007,7 @@ export default function App() {
       {/* Centered Mobile-First Shell */}
       <div className="max-w-md mx-auto min-h-screen relative flex flex-col bg-[#0B0F17] sm:border-x sm:border-[#1E293B]/60">
         {/* Top Bar with ReyTune Branding, Install PWA Trigger & Online/Offline Switch */}
-        <header className="sticky top-0 z-30 bg-[#0B0F17]/95 backdrop-blur-md border-b border-[#1E293B]/80 px-4 h-14 flex items-center justify-between gap-2">
+        <header className="sticky top-0 z-30 bg-[#0B0F17]/95 backdrop-blur-md border-b border-[#1E293B]/80 px-4 pt-[max(0.35rem,env(safe-area-inset-top,0px))] pb-1.5 min-h-[60px] flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <img
               src="/icon.svg"
@@ -1079,7 +1079,7 @@ export default function App() {
         </header>
 
         {/* Main Scrollable Content Area */}
-        <main className="flex-1 px-4 pt-4 pb-44">
+        <main className="flex-1 px-4 pt-4 pb-56">
           <AnimatePresence>
             {isOfflineMode && (
               <motion.div
@@ -1225,7 +1225,9 @@ export default function App() {
               role="status"
               aria-live="polite"
               className={`fixed left-1/2 -translate-x-1/2 z-40 w-[calc(100%-1.5rem)] max-w-[424px] pointer-events-none ${
-                currentTrack ? 'bottom-[142px]' : 'bottom-[78px]'
+                currentTrack
+                  ? 'bottom-[calc(166px+env(safe-area-inset-bottom,0px))] sm:bottom-[154px]'
+                  : 'bottom-[calc(102px+env(safe-area-inset-bottom,0px))] sm:bottom-[90px]'
               }`}
             >
               <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#1E293B]/95 backdrop-blur-md border border-[#334155]/80 shadow-xl text-xs font-medium text-[#F8FAFC]">

@@ -115,7 +115,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-full max-w-md h-full bg-gradient-to-b from-[#131A26] via-[#0B0F17] to-[#0B0F17] flex flex-col justify-between px-6 pt-4 pb-8 overflow-y-auto"
+            className="relative w-full max-w-md h-full bg-gradient-to-b from-[#131A26] via-[#0B0F17] to-[#0B0F17] flex flex-col justify-between px-6 pt-[max(1rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-[max(2.75rem,calc(env(safe-area-inset-bottom,0px)+2.25rem))] overflow-y-auto"
           >
             {/* Header */}
             <header className="flex items-center justify-between gap-2 shrink-0">

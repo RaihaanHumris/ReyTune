@@ -29,7 +29,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
   return (
     <div
       data-testid="mini-player"
-      className="fixed bottom-[70px] left-1/2 -translate-x-1/2 w-full max-w-md z-30 px-3"
+      className="fixed bottom-[calc(94px+env(safe-area-inset-bottom,0px))] sm:bottom-[82px] left-1/2 -translate-x-1/2 w-full max-w-md z-30 px-3"
     >
       <div className="relative rounded-xl overflow-hidden bg-[#1E293B]/90 backdrop-blur-md border border-[#334155]/50 shadow-xl">
         {/* 2px Top Progress Bar */}
