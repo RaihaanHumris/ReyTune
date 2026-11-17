@@ -131,7 +131,9 @@ export default function App() {
   // Audio player state
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const offlineBlobUrlsRef = useRef<Record<string, string>>({});
+  const partialBlobUrlsRef = useRef<Record<string, string>>({});
   const playRequestIdRef = useRef<number>(0);
+  const activeRecoveryReqIdRef = useRef<number>(0);
   const isSwitchingTrackRef = useRef<boolean>(false);
   const isAudioUnlockedRef = useRef<boolean>(false);
   const [queue, setQueue] = useState<Track[]>(CATALOG_TRACKS);
@@ -374,23 +376,22 @@ export default function App() {
   // Unlock HTML5 Audio element on the very first touchstart/pointerdown on mobile (iOS Safari & Android Chrome)
   useEffect(() => {
     const unlockAudio = () => {
-      if (isAudioUnlockedRef.current) return;
+      if (isAudioUnlockedRef.current || playRequestIdRef.current !== 0) return;
       const audio = audioRef.current;
       if (!audio) return;
       isAudioUnlockedRef.current = true;
-      if (audio.paused && (!audio.src || audio.currentTime === 0)) {
-        const prevSrc = audio.src;
+      if (audio.paused && !audio.src) {
         isSwitchingTrackRef.current = true;
         audio.muted = true;
         audio.src = SILENT_WAV_DATA_URI;
         const p = audio.play();
         if (p !== undefined) {
           p.then(() => {
-            audio.pause();
-            audio.muted = false;
-            if (prevSrc && prevSrc !== SILENT_WAV_DATA_URI) {
-              audio.src = prevSrc;
+            if (playRequestIdRef.current === 0 && audio.src === SILENT_WAV_DATA_URI) {
+              audio.pause();
+              audio.removeAttribute('src');
             }
+            audio.muted = false;
             isSwitchingTrackRef.current = false;
           }).catch(() => {
             audio.muted = false;
@@ -417,6 +418,10 @@ export default function App() {
     if (cachedBlobUrl) {
       return cachedBlobUrl;
     }
+    const partialBlobUrl = partialBlobUrlsRef.current[track.id];
+    if (partialBlobUrl) {
+      return partialBlobUrl;
+    }
     return getPlayableAudioSrc(track);
   }, []);
 
@@ -425,73 +430,94 @@ export default function App() {
     async (track: Track, reqId: number) => {
       const audio = audioRef.current;
       if (!audio || playRequestIdRef.current !== reqId) return;
+      // Prevent duplicate concurrent recovery for the same play request
+      if (activeRecoveryReqIdRef.current === reqId) return;
+      activeRecoveryReqIdRef.current = reqId;
+
+      const proxyUrl = getProxyAudioSrc(track);
 
       try {
-        const proxyUrl = getProxyAudioSrc(track);
-        // Fetch initial 2.5MB chunk via window.fetch (which carries iframe credentials) for fast mobile startup
-        const res = await fetch(proxyUrl, {
+        // Fetch initial 1.8MB chunk via window.fetch (carries iframe credentials) for fast mobile startup
+        let res = await fetch(proxyUrl, {
           credentials: 'include',
-          headers: { Range: 'bytes=0-2621439' },
+          headers: { Range: 'bytes=0-1887436' },
         });
+        if (!res.ok && res.status !== 206) {
+          // Retry without Range header if Range failed
+          res = await fetch(proxyUrl, { credentials: 'include' });
+        }
         if (!res.ok && res.status !== 206) {
           throw new Error(`HTTP ${res.status}`);
         }
+
         const buf = await res.arrayBuffer();
         if (playRequestIdRef.current !== reqId || buf.byteLength < 1024) {
-          throw new Error('Empty audio buffer');
+          return;
         }
+
+        const isPartial = res.status === 206;
         const blob = new Blob([buf], { type: 'audio/mpeg' });
         const blobUrl = URL.createObjectURL(blob);
-        if (offlineBlobUrlsRef.current[track.id]) {
-          URL.revokeObjectURL(offlineBlobUrlsRef.current[track.id]);
+
+        if (isPartial) {
+          if (partialBlobUrlsRef.current[track.id]) {
+            URL.revokeObjectURL(partialBlobUrlsRef.current[track.id]);
+          }
+          partialBlobUrlsRef.current[track.id] = blobUrl;
+        } else {
+          if (offlineBlobUrlsRef.current[track.id]) {
+            URL.revokeObjectURL(offlineBlobUrlsRef.current[track.id]);
+          }
+          offlineBlobUrlsRef.current[track.id] = blobUrl;
         }
-        offlineBlobUrlsRef.current[track.id] = blobUrl;
 
         if (playRequestIdRef.current !== reqId) return;
         isSwitchingTrackRef.current = true;
         audio.muted = false;
         audio.src = blobUrl;
-        const p = audio.play();
-        if (p !== undefined) {
-          await p;
-        }
-        if (playRequestIdRef.current === reqId) {
-          isSwitchingTrackRef.current = false;
-          setIsPlaying(true);
-        }
 
-        // Fetch full track in background so the rest of the song is cached seamlessly
-        void fetch(proxyUrl, { credentials: 'include' })
-          .then((fullRes) => (fullRes.ok ? fullRes.arrayBuffer() : null))
-          .then((fullBuf) => {
-            if (fullBuf && fullBuf.byteLength > buf.byteLength) {
-              const fullBlob = new Blob([fullBuf], { type: 'audio/mpeg' });
-              const fullUrl = URL.createObjectURL(fullBlob);
-              const oldUrl = offlineBlobUrlsRef.current[track.id];
-              offlineBlobUrlsRef.current[track.id] = fullUrl;
-              if (oldUrl && audioRef.current?.src !== oldUrl) {
-                URL.revokeObjectURL(oldUrl);
-              }
-            }
-          })
-          .catch(() => undefined);
-      } catch {
-        if (playRequestIdRef.current !== reqId) return;
-        // Final fallback to local bundled full-length MP3 so mobile playback never fails silently
-        isSwitchingTrackRef.current = true;
-        audio.muted = false;
-        audio.src = '/audio/midnight-rain.mp3';
         try {
-          await audio.play();
-          isSwitchingTrackRef.current = false;
-          setIsPlaying(true);
-        } catch {
+          const p = audio.play();
+          if (p !== undefined) {
+            await p;
+          }
+          if (playRequestIdRef.current === reqId) {
+            isSwitchingTrackRef.current = false;
+            setIsPlaying(true);
+          }
+        } catch (playErr: unknown) {
+          if (playRequestIdRef.current !== reqId) return;
+          const errName = playErr instanceof Error ? playErr.name : '';
+          if (errName === 'AbortError') return;
           isSwitchingTrackRef.current = false;
           setIsPlaying(false);
+          return;
         }
+
+        // If initial response was a 206 starter chunk, fetch the complete full-length MP3 in background
+        if (isPartial && !offlineBlobUrlsRef.current[track.id]) {
+          void fetch(proxyUrl, { credentials: 'include' })
+            .then((fullRes) => (fullRes.ok ? fullRes.arrayBuffer() : null))
+            .then((fullBuf) => {
+              if (fullBuf && fullBuf.byteLength > buf.byteLength) {
+                const fullBlob = new Blob([fullBuf], { type: 'audio/mpeg' });
+                const fullUrl = URL.createObjectURL(fullBlob);
+                if (offlineBlobUrlsRef.current[track.id]) {
+                  URL.revokeObjectURL(offlineBlobUrlsRef.current[track.id]);
+                }
+                offlineBlobUrlsRef.current[track.id] = fullUrl;
+              }
+            })
+            .catch(() => undefined);
+        }
+      } catch {
+        if (playRequestIdRef.current !== reqId) return;
+        isSwitchingTrackRef.current = false;
+        setIsPlaying(false);
+        showToast(`Gagal memuat stream "${track.title}". Coba ketuk lagi.`, 'warning');
       }
     },
-    []
+    [showToast]
   );
 
   // Start playback synchronously within the user tap event (required on iOS Safari & Mobile Chrome)
@@ -765,11 +791,26 @@ export default function App() {
       const clampedTime = Math.max(0, time);
       setCurrentTime(clampedTime);
       if (audio && Number.isFinite(clampedTime)) {
+        // If currently playing a starter partial blob and the full track blob is ready, swap seamlessly on seek
+        if (
+          currentTrack &&
+          offlineBlobUrlsRef.current[currentTrack.id] &&
+          audio.src !== offlineBlobUrlsRef.current[currentTrack.id]
+        ) {
+          isSwitchingTrackRef.current = true;
+          audio.src = offlineBlobUrlsRef.current[currentTrack.id];
+          audio.currentTime = clampedTime;
+          void audio.play().finally(() => {
+            isSwitchingTrackRef.current = false;
+          });
+          updateMediaSessionPosition();
+          return;
+        }
         audio.currentTime = clampedTime;
         updateMediaSessionPosition();
       }
     },
-    [updateMediaSessionPosition]
+    [currentTrack, updateMediaSessionPosition]
   );
 
   // Wire HTML5 audio events
@@ -783,13 +824,30 @@ export default function App() {
     };
     const onLoadedMetadata = () => {
       if (Number.isFinite(audio.duration) && audio.duration > 0) {
-        setDuration(audio.duration);
+        // Preserve full track duration when playing an initial starter chunk
+        const isPartial =
+          currentTrack &&
+          partialBlobUrlsRef.current[currentTrack.id] &&
+          audio.src === partialBlobUrlsRef.current[currentTrack.id];
+        setDuration(
+          isPartial && currentTrack
+            ? Math.max(audio.duration, currentTrack.durationSec)
+            : audio.duration
+        );
         updateMediaSessionPosition();
       }
     };
     const onDurationChange = () => {
       if (Number.isFinite(audio.duration) && audio.duration > 0) {
-        setDuration(audio.duration);
+        const isPartial =
+          currentTrack &&
+          partialBlobUrlsRef.current[currentTrack.id] &&
+          audio.src === partialBlobUrlsRef.current[currentTrack.id];
+        setDuration(
+          isPartial && currentTrack
+            ? Math.max(audio.duration, currentTrack.durationSec)
+            : audio.duration
+        );
         updateMediaSessionPosition();
       }
     };
@@ -823,6 +881,22 @@ export default function App() {
       }
     };
     const onEnded = () => {
+      // If a starter chunk just finished and the full-length blob is ready, seamlessly continue!
+      if (
+        currentTrack &&
+        offlineBlobUrlsRef.current[currentTrack.id] &&
+        audio.src !== offlineBlobUrlsRef.current[currentTrack.id]
+      ) {
+        const resumeFrom = audio.currentTime;
+        isSwitchingTrackRef.current = true;
+        audio.src = offlineBlobUrlsRef.current[currentTrack.id];
+        audio.currentTime = resumeFrom;
+        void audio.play().finally(() => {
+          isSwitchingTrackRef.current = false;
+        });
+        return;
+      }
+
       isSwitchingTrackRef.current = false;
       if (repeatMode === 'one') {
         audio.currentTime = 0;
