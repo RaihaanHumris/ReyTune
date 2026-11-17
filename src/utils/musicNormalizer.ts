@@ -409,7 +409,7 @@ export function parseDriveEmbeddedFolderHtml(
     const fileId = match[1]?.trim();
     const rawName = decodeHtmlEntities(match[2]?.trim() || '');
     if (!fileId || !rawName) continue;
-    if (!/\.(mp3|m4a|wav|ogg|flac)$/i.test(rawName)) continue;
+    if (!/\.(mp3|m4a|wav|ogg|flac|aac|opus|webm)$/i.test(rawName)) continue;
     if (rawName === 'audio1645293506.m4a') continue;
     results.push({ fileId, fileName: rawName });
   }
@@ -421,7 +421,7 @@ export function parseDriveAudioFilename(fileName: string): {
   artist: string;
   genre: string;
 } {
-  let base = fileName.replace(/\.(mp3|m4a|wav|ogg|flac)$/i, '').trim();
+  let base = fileName.replace(/\.(mp3|m4a|wav|ogg|flac|aac|opus|webm)$/i, '').trim();
   base = base.replace(/\s*\(\d+\)\s*$/, '').trim();
 
   if (

@@ -257,6 +257,8 @@ export default function App() {
   const audioUnlockedRef = useRef<boolean>(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const offlineBlobUrlsRef = useRef<Record<string, string>>({});
+  const starterBlobInfoRef = useRef<{ trackId: string; blobUrl: string } | null>(null);
+  const sessionStreamBlobOrderRef = useRef<string[]>([]);
   const inFlightPrefetchesRef = useRef<Record<string, Promise<string | null>>>({});
   const playRequestIdRef = useRef<number>(0);
   const activeRecoveryReqIdRef = useRef<number>(0);
@@ -600,6 +602,36 @@ export default function App() {
     };
   }, [unlockAudioPlaybackSync]);
 
+  // Store ephemeral streamed Blob URL with bounded LRU eviction (preserves offline-saved tracks)
+  const storeSessionBlobUrl = useCallback(
+    (trackId: string, blobUrl: string) => {
+      const prev = offlineBlobUrlsRef.current[trackId];
+      if (prev && prev !== blobUrl) {
+        URL.revokeObjectURL(prev);
+      }
+      offlineBlobUrlsRef.current[trackId] = blobUrl;
+
+      if (!downloadedIds.has(trackId)) {
+        const order = sessionStreamBlobOrderRef.current.filter((id) => id !== trackId);
+        order.push(trackId);
+        while (order.length > 12) {
+          const oldestId = order.shift();
+          if (
+            oldestId &&
+            !downloadedIds.has(oldestId) &&
+            activeTrackRef.current?.id !== oldestId &&
+            offlineBlobUrlsRef.current[oldestId]
+          ) {
+            URL.revokeObjectURL(offlineBlobUrlsRef.current[oldestId]);
+            delete offlineBlobUrlsRef.current[oldestId];
+          }
+        }
+        sessionStreamBlobOrderRef.current = order;
+      }
+    },
+    [downloadedIds]
+  );
+
   // Synchronous audio source resolver so mobile browsers never lose user-gesture activation
   const getAudioSourceSync = useCallback((track: Track): string => {
     const cachedBlobUrl = offlineBlobUrlsRef.current[track.id];
@@ -648,9 +680,8 @@ export default function App() {
           if (buf.byteLength < 4096) return null;
           const mime = ct.startsWith('audio/') ? ct.split(';')[0] : 'audio/mpeg';
           if (!offlineBlobUrlsRef.current[track.id]) {
-            offlineBlobUrlsRef.current[track.id] = URL.createObjectURL(
-              new Blob([buf], { type: mime })
-            );
+            const url = URL.createObjectURL(new Blob([buf], { type: mime }));
+            storeSessionBlobUrl(track.id, url);
           }
           setIframeAuthBlocked(false);
           return offlineBlobUrlsRef.current[track.id];
@@ -664,7 +695,7 @@ export default function App() {
       inFlightPrefetchesRef.current[track.id] = task;
       return task;
     },
-    [isOfflineMode]
+    [isOfflineMode, storeSessionBlobUrl]
   );
 
   // Sequentially prefetch the top 3 Google Drive tracks so the first tap plays in 0ms
@@ -688,7 +719,7 @@ export default function App() {
     };
   }, [isOfflineMode, onlineFeedTracks, prefetchTrackAudio]);
 
-  // Full-track recovery using backend proxy fetch -> complete Blob URL (no partial 524KB cutoff)
+  // Fast recovery via progressive 1MB Range starter -> Blob URL (for cookie-restricted mobile iframes)
   const recoverPlaybackViaFetch = useCallback(
     async (track: Track, reqId: number) => {
       const audio = audioRef.current;
@@ -726,7 +757,23 @@ export default function App() {
       }
 
       try {
-        // If this track is already prefetching (e.g. triggered on pointerdown), await that first
+        // 1. If full track is already cached or currently prefetching, use it directly
+        if (offlineBlobUrlsRef.current[track.id]) {
+          const cachedUrl = offlineBlobUrlsRef.current[track.id];
+          isSwitchingTrackRef.current = true;
+          audio.muted = false;
+          audio.volume = 1;
+          configureAudioElementForSrc(audio, cachedUrl);
+          audio.src = cachedUrl;
+          await audio.play();
+          if (playRequestIdRef.current === reqId) {
+            audioUnlockedRef.current = true;
+            isSwitchingTrackRef.current = false;
+            setIsPlaying(true);
+          }
+          return;
+        }
+
         const inFlight = inFlightPrefetchesRef.current[track.id];
         if (inFlight) {
           const prefetchedUrl = await inFlight;
@@ -750,8 +797,11 @@ export default function App() {
           }
         }
 
+        // 2. Fetch fast initial 1MB Range slice so audio starts in <0.5s instead of waiting for full MP3
+        const rangeHeaders = { Range: 'bytes=0-1048575' };
         let res = await fetch(proxyUrl, {
           credentials: 'include',
+          headers: rangeHeaders,
         }).catch(() => null);
 
         const firstCt = (res?.headers.get('content-type') || '').toLowerCase();
@@ -761,6 +811,7 @@ export default function App() {
         ) {
           res = await fetch(fallbackApiUrl, {
             credentials: 'include',
+            headers: rangeHeaders,
           }).catch(() => null);
         }
 
@@ -771,7 +822,6 @@ export default function App() {
           res.url.includes('__cookie_check') ||
           ct.includes('text/html')
         ) {
-          // If track is a hearthis.at CDN URL, play hearthis.at directly in <audio>
           if (directUrl.includes('hearthis.at/')) {
             if (playRequestIdRef.current !== reqId) return;
             isSwitchingTrackRef.current = true;
@@ -801,10 +851,32 @@ export default function App() {
         const blob = new Blob([buf], { type: mime });
         const blobUrl = URL.createObjectURL(blob);
 
-        if (offlineBlobUrlsRef.current[track.id]) {
-          URL.revokeObjectURL(offlineBlobUrlsRef.current[track.id]);
+        const contentRange = res.headers.get('content-range') || '';
+        const rangeTotalMatch = /bytes \d+-\d+\/(\d+)/i.exec(contentRange);
+        const totalExpectedBytes = rangeTotalMatch ? Number(rangeTotalMatch[1]) : 0;
+        const isPartialStarter =
+          res.status === 206 &&
+          totalExpectedBytes > 0 &&
+          buf.byteLength < totalExpectedBytes;
+
+        if (isPartialStarter) {
+          if (
+            starterBlobInfoRef.current &&
+            starterBlobInfoRef.current.blobUrl !== blobUrl
+          ) {
+            URL.revokeObjectURL(starterBlobInfoRef.current.blobUrl);
+          }
+          starterBlobInfoRef.current = { trackId: track.id, blobUrl };
+          // Download complete MP3 in background while starter plays
+          void prefetchTrackAudio(track);
+        } else {
+          if (starterBlobInfoRef.current?.trackId === track.id) {
+            URL.revokeObjectURL(starterBlobInfoRef.current.blobUrl);
+            starterBlobInfoRef.current = null;
+          }
+          storeSessionBlobUrl(track.id, blobUrl);
         }
-        offlineBlobUrlsRef.current[track.id] = blobUrl;
+
         setIframeAuthBlocked(false);
 
         if (playRequestIdRef.current !== reqId) return;
@@ -850,10 +922,10 @@ export default function App() {
         );
       }
     },
-    [showToast]
+    [prefetchTrackAudio, showToast, storeSessionBlobUrl]
   );
 
-  // Start playback synchronously within the user tap event (required on iOS Safari & Mobile Chrome)
+  // Start playback synchronously within the user tap event so progressive HTTP 206 streaming starts immediately
   const triggerSyncPlayback = useCallback(
     (track: Track) => {
       const audio = audioRef.current;
@@ -897,15 +969,6 @@ export default function App() {
         return;
       }
 
-      // If mobile <audio> has not been unlocked yet, synchronously play a 1-sample silent WAV
-      // right inside this tap gesture, then fetch full Drive audio via credentials: 'include'
-      if (!audioUnlockedRef.current) {
-        unlockAudioPlaybackSync();
-        setIsPlaying(true);
-        void recoverPlaybackViaFetch(track, reqId);
-        return;
-      }
-
       const targetSrc = getAudioSourceSync(track);
       isSwitchingTrackRef.current = true;
       audio.muted = false;
@@ -929,10 +992,14 @@ export default function App() {
             if (playRequestIdRef.current !== reqId) return;
             const errName = err instanceof Error ? err.name : '';
             if (errName === 'AbortError') return;
-            // If direct <audio> failed (e.g. mobile iframe cookie dropped), recover via fetch -> Blob
+            // Fallback to progressive Range-starter fetch -> Blob (handles mobile iframe cookie blocks)
+            if (!audioUnlockedRef.current) {
+              unlockAudioPlaybackSync();
+            }
             void recoverPlaybackViaFetch(track, reqId);
           });
       } else {
+        audioUnlockedRef.current = true;
         isSwitchingTrackRef.current = false;
       }
     },
@@ -1179,6 +1246,10 @@ export default function App() {
           audio.src !== offlineBlobUrlsRef.current[currentTrack.id]
         ) {
           isSwitchingTrackRef.current = true;
+          if (starterBlobInfoRef.current?.trackId === currentTrack.id) {
+            URL.revokeObjectURL(starterBlobInfoRef.current.blobUrl);
+            starterBlobInfoRef.current = null;
+          }
           configureAudioElementForSrc(audio, offlineBlobUrlsRef.current[currentTrack.id]);
           audio.src = offlineBlobUrlsRef.current[currentTrack.id];
           audio.currentTime = clampedTime;
@@ -1200,9 +1271,50 @@ export default function App() {
     const audio = audioRef.current;
     if (!audio) return;
 
+    const upgradeStarterToFullBlob = async (resumeAt: number): Promise<boolean> => {
+      const starter = starterBlobInfoRef.current;
+      if (!starter || starter.trackId !== currentTrack?.id) return false;
+      if (audio.src !== starter.blobUrl) return false;
+      let fullUrl: string | undefined = offlineBlobUrlsRef.current[starter.trackId];
+      const pendingFetch: Promise<string | null> | undefined =
+        inFlightPrefetchesRef.current[starter.trackId];
+      if (!fullUrl && pendingFetch) {
+        fullUrl = (await pendingFetch) ?? '';
+      }
+      if (!fullUrl || activeTrackRef.current?.id !== starter.trackId) return false;
+
+      isSwitchingTrackRef.current = true;
+      configureAudioElementForSrc(audio, fullUrl);
+      audio.src = fullUrl;
+      audio.currentTime = Math.max(0, resumeAt);
+      URL.revokeObjectURL(starter.blobUrl);
+      starterBlobInfoRef.current = null;
+      try {
+        await audio.play();
+        isSwitchingTrackRef.current = false;
+        return true;
+      } catch {
+        isSwitchingTrackRef.current = false;
+        return false;
+      }
+    };
+
     const onTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
       updateMediaSessionPosition();
+      const starter = starterBlobInfoRef.current;
+      if (
+        starter &&
+        starter.trackId === currentTrack?.id &&
+        audio.src === starter.blobUrl &&
+        offlineBlobUrlsRef.current[starter.trackId] &&
+        audio.buffered.length > 0
+      ) {
+        const bufferedEnd = audio.buffered.end(audio.buffered.length - 1);
+        if (bufferedEnd > 5 && audio.currentTime >= bufferedEnd - 2) {
+          void upgradeStarterToFullBlob(audio.currentTime);
+        }
+      }
     };
     const onLoadedMetadata = () => {
       if (Number.isFinite(audio.duration) && audio.duration > 0) {
@@ -1254,6 +1366,22 @@ export default function App() {
       // Ignore silent gesture unlock completion
       if (audio.src === SILENT_WAV_DATA_URI) return;
 
+      const starter = starterBlobInfoRef.current;
+      if (
+        starter &&
+        starter.trackId === currentTrack?.id &&
+        audio.src === starter.blobUrl
+      ) {
+        const resumeAt = audio.currentTime;
+        void upgradeStarterToFullBlob(resumeAt).then((upgraded) => {
+          if (!upgraded) {
+            isSwitchingTrackRef.current = false;
+            void handleStepTrack('next');
+          }
+        });
+        return;
+      }
+
       isSwitchingTrackRef.current = false;
       if (repeatMode === 'one') {
         audio.currentTime = 0;
@@ -1290,6 +1418,27 @@ export default function App() {
     repeatMode,
     updateMediaSessionPosition,
   ]);
+
+  // Pre-warm the next track in queue while current song plays for gapless continuous Drive streaming
+  useEffect(() => {
+    if (isOfflineMode || !isPlaying || !currentTrackId || queue.length <= 1) return;
+    const currentIdx = queue.findIndex((t) => t.id === currentTrackId);
+    const nextIdx = getNextTrackIndex({
+      currentIndex: currentIdx >= 0 ? currentIdx : 0,
+      queueLength: queue.length,
+      repeatMode: repeatMode === 'one' ? 'all' : repeatMode,
+      shuffle,
+      direction: 'next',
+    });
+    if (nextIdx === null) return;
+    const nextTrack = queue[nextIdx];
+    if (!nextTrack || offlineBlobUrlsRef.current[nextTrack.id]) return;
+
+    const timer = window.setTimeout(() => {
+      void prefetchTrackAudio(nextTrack);
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [currentTrackId, isOfflineMode, isPlaying, prefetchTrackAudio, queue, repeatMode, shuffle]);
 
   // Wire Lock Screen & Background Media Session API (Android / iOS / Desktop)
   useEffect(() => {
@@ -1852,6 +2001,11 @@ export default function App() {
                   downloadProgressMap={downloadProgressMap}
                   audioQuality={audioQuality}
                   onPlayTrack={(track) => void handlePlayTrack(track)}
+                  onPlayAll={() => {
+                    if (exploreTracks.length > 0) {
+                      void handlePlayTrack(exploreTracks[0], exploreTracks);
+                    }
+                  }}
                   onDownloadTrack={(track) => void handleDownloadTrack(track)}
                   onSaveFileToDevice={(track) => void handleSaveFileToDevice(track)}
                   onDeleteDownload={handleDeleteDownload}

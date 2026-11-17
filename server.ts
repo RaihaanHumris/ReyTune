@@ -101,15 +101,271 @@ function getJamendoClientId(): string {
 }
 
 // In-memory LRU cache of full MP3 track buffers for instant (<1ms) HTTP 206 Range responses
-const MAX_CACHED_AUDIO_BUFFERS = 30;
+const MAX_CACHED_AUDIO_BUFFERS = 40;
+const MAX_CACHED_AUDIO_BYTES = 128 * 1024 * 1024;
+const MAX_CONCURRENT_WARMUPS = 2;
 const audioBufferCache = new Map<
   string,
   { buffer: Buffer; contentType: string }
 >();
+let totalCachedAudioBytes = 0;
 const inFlightBufferWarmups = new Map<string, Promise<Buffer | null>>();
+let activeWarmupCount = 0;
+
+// Short-TTL cache for resolved Google Drive CDN stream URLs so Range seeks bypass Drive confirm checks
+const driveResolvedUrlCache = new Map<
+  string,
+  { url: string; cookie?: string; expiresAt: number }
+>();
+
+const BROWSER_USER_AGENT =
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
 
 function normalizeUpstreamAudioUrl(rawUrl: string): string {
   return rawUrl.replace(/^https:\/\/hearthis\.app\//i, 'https://hearthis.at/');
+}
+
+function extractDriveFileIdFromAudioUrl(rawUrl: string): string | null {
+  try {
+    const parsed = new URL(rawUrl);
+    if (
+      parsed.hostname.includes('drive.usercontent.google.com') ||
+      parsed.hostname.includes('drive.google.com')
+    ) {
+      const qId = parsed.searchParams.get('id');
+      if (qId && /^[a-zA-Z0-9_-]{10,}$/.test(qId)) {
+        return qId;
+      }
+      const dMatch = /\/d\/([a-zA-Z0-9_-]{10,})/.exec(parsed.pathname);
+      if (dMatch?.[1]) {
+        return dMatch[1];
+      }
+    }
+  } catch {
+    // Ignore invalid URL
+  }
+  return null;
+}
+
+function inferAudioContentType(
+  rawContentType: string,
+  contentDisposition: string,
+  titleHint: string,
+  urlHint: string
+): string {
+  const ct = rawContentType.toLowerCase();
+  if (
+    ct.includes('audio/') ||
+    ct.includes('mpeg') ||
+    ct.includes('mp4') ||
+    ct.includes('ogg') ||
+    ct.includes('flac') ||
+    ct.includes('wav') ||
+    ct.includes('aac') ||
+    ct.includes('webm')
+  ) {
+    return ct.split(';')[0].trim();
+  }
+  const combinedHint = `${contentDisposition} ${titleHint} ${urlHint}`.toLowerCase();
+  if (/\.m4a\b/.test(combinedHint)) return 'audio/mp4';
+  if (/\.aac\b/.test(combinedHint)) return 'audio/aac';
+  if (/\.flac\b/.test(combinedHint)) return 'audio/flac';
+  if (/\.wav\b/.test(combinedHint)) return 'audio/wav';
+  if (/\.(ogg|opus)\b/.test(combinedHint)) return 'audio/ogg';
+  if (/\.webm\b/.test(combinedHint)) return 'audio/webm';
+  return 'audio/mpeg';
+}
+
+function extractDriveConfirmUrlFromHtml(html: string, baseUrl: string): string | null {
+  const formMatch = /<form[^>]*id=["']download-form["'][^>]*action=["']([^"']+)["'][^>]*>([\s\S]*?)<\/form>/i.exec(
+    html
+  );
+  if (formMatch?.[1]) {
+    const actionUrl = new URL(formMatch[1].replace(/&amp;/g, '&'), baseUrl);
+    const inputsBlock = formMatch[2] || '';
+    const inputRegex = /<input[^>]*name=["']([^"']+)["'][^>]*value=["']([^"']*)["'][^>]*>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = inputRegex.exec(inputsBlock)) !== null) {
+      actionUrl.searchParams.set(m[1], m[2]);
+    }
+    return actionUrl.toString();
+  }
+
+  const hrefMatch = /href=["']([^"']*confirm=[^"']+)["']/i.exec(html);
+  if (hrefMatch?.[1]) {
+    return new URL(hrefMatch[1].replace(/&amp;/g, '&'), baseUrl).toString();
+  }
+
+  const uuidMatch = /name=["']uuid["']\s+value=["']([^"']+)["']/i.exec(html);
+  const idMatch = /name=["']id["']\s+value=["']([^"']+)["']/i.exec(html);
+  if (uuidMatch?.[1] && idMatch?.[1]) {
+    return `https://drive.usercontent.google.com/download?id=${encodeURIComponent(idMatch[1])}&export=download&confirm=t&uuid=${encodeURIComponent(uuidMatch[1])}`;
+  }
+
+  return null;
+}
+
+function extractCookieHeaderFromResponse(res: Response): string {
+  const headersAny = res.headers as unknown as {
+    getSetCookie?: () => string[];
+  };
+  const rawCookies =
+    typeof headersAny.getSetCookie === 'function'
+      ? headersAny.getSetCookie()
+      : res.headers.get('set-cookie')
+      ? [res.headers.get('set-cookie')!]
+      : [];
+  return rawCookies
+    .map((line) => line.split(';')[0]?.trim())
+    .filter(Boolean)
+    .join('; ');
+}
+
+async function fetchUpstreamAudioWithFallback(
+  rawUrl: string,
+  method: 'GET' | 'HEAD',
+  incomingRange: string,
+  signal: AbortSignal
+): Promise<Response> {
+  const normalizedUrl = normalizeUpstreamAudioUrl(rawUrl);
+  const driveFileId = extractDriveFileIdFromAudioUrl(normalizedUrl);
+
+  const buildHeaders = (cookie?: string): Record<string, string> => {
+    const h: Record<string, string> = {
+      'User-Agent': BROWSER_USER_AGENT,
+      Accept: '*/*',
+    };
+    if (incomingRange) {
+      h.Range = incomingRange;
+    }
+    if (cookie) {
+      h.Cookie = cookie;
+    }
+    return h;
+  };
+
+  if (!driveFileId) {
+    return fetch(normalizedUrl, {
+      method,
+      headers: buildHeaders(),
+      redirect: 'follow',
+      signal,
+    });
+  }
+
+  const cachedResolved = driveResolvedUrlCache.get(driveFileId);
+  const candidates: { url: string; cookie?: string }[] = [];
+  if (cachedResolved && cachedResolved.expiresAt > Date.now()) {
+    candidates.push({ url: cachedResolved.url, cookie: cachedResolved.cookie });
+  }
+  candidates.push({
+    url: `https://drive.usercontent.google.com/download?id=${encodeURIComponent(driveFileId)}&export=download&confirm=t`,
+  });
+  candidates.push({
+    url: `https://drive.google.com/uc?export=download&confirm=t&id=${encodeURIComponent(driveFileId)}`,
+  });
+
+  let lastResponse: Response | null = null;
+  for (const candidate of candidates) {
+    try {
+      const res = await fetch(candidate.url, {
+        method,
+        headers: buildHeaders(candidate.cookie),
+        redirect: 'follow',
+        signal,
+      });
+      lastResponse = res;
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+
+      // If Google Drive returned an HTML virus-scan/confirm page, extract confirm+uuid and retry
+      if (ct.includes('text/html')) {
+        if (method === 'HEAD') {
+          const probeRes = await fetch(candidate.url, {
+            method: 'GET',
+            headers: buildHeaders(candidate.cookie),
+            redirect: 'follow',
+            signal,
+          });
+          const probeCt = (probeRes.headers.get('content-type') || '').toLowerCase();
+          if ((probeRes.ok || probeRes.status === 206) && !probeCt.includes('text/html')) {
+            return probeRes;
+          }
+          if (probeCt.includes('text/html')) {
+            const html = await probeRes.text();
+            const confirmUrl = extractDriveConfirmUrlFromHtml(html, probeRes.url || candidate.url);
+            const cookie = extractCookieHeaderFromResponse(probeRes) || candidate.cookie;
+            if (confirmUrl) {
+              const confirmed = await fetch(confirmUrl, {
+                method: 'GET',
+                headers: buildHeaders(cookie),
+                redirect: 'follow',
+                signal,
+              });
+              const confirmedCt = (confirmed.headers.get('content-type') || '').toLowerCase();
+              if ((confirmed.ok || confirmed.status === 206) && !confirmedCt.includes('text/html')) {
+                driveResolvedUrlCache.set(driveFileId, {
+                  url: confirmed.url || confirmUrl,
+                  cookie,
+                  expiresAt: Date.now() + 8 * 60 * 1000,
+                });
+                return confirmed;
+              }
+            }
+          }
+          continue;
+        }
+
+        const html = await res.text();
+        const confirmUrl = extractDriveConfirmUrlFromHtml(html, res.url || candidate.url);
+        const cookie = extractCookieHeaderFromResponse(res) || candidate.cookie;
+        if (confirmUrl) {
+          const confirmed = await fetch(confirmUrl, {
+            method,
+            headers: buildHeaders(cookie),
+            redirect: 'follow',
+            signal,
+          });
+          lastResponse = confirmed;
+          const confirmedCt = (confirmed.headers.get('content-type') || '').toLowerCase();
+          if ((confirmed.ok || confirmed.status === 206) && !confirmedCt.includes('text/html')) {
+            driveResolvedUrlCache.set(driveFileId, {
+              url: confirmed.url || confirmUrl,
+              cookie,
+              expiresAt: Date.now() + 8 * 60 * 1000,
+            });
+            return confirmed;
+          }
+        }
+        continue;
+      }
+
+      if (res.ok || res.status === 206) {
+        if (res.url && res.url.startsWith('https://')) {
+          driveResolvedUrlCache.set(driveFileId, {
+            url: res.url,
+            cookie: candidate.cookie,
+            expiresAt: Date.now() + 8 * 60 * 1000,
+          });
+        }
+        return res;
+      }
+
+      if (res.status === 403 || res.status === 429 || res.status >= 500) {
+        driveResolvedUrlCache.delete(driveFileId);
+        continue;
+      }
+
+      return res;
+    } catch (err) {
+      if (signal.aborted) throw err;
+      driveResolvedUrlCache.delete(driveFileId);
+    }
+  }
+
+  if (lastResponse) {
+    return lastResponse;
+  }
+  throw new Error('All Google Drive upstream endpoints failed');
 }
 
 function storeAudioBufferInCache(
@@ -117,16 +373,27 @@ function storeAudioBufferInCache(
   buffer: Buffer,
   contentType: string
 ): void {
-  if (buffer.length < 32768) return;
-  if (audioBufferCache.has(normalizedUrl)) {
+  if (buffer.length < 32768 || buffer.length > 24 * 1024 * 1024) return;
+  const existing = audioBufferCache.get(normalizedUrl);
+  if (existing) {
+    totalCachedAudioBytes -= existing.buffer.length;
     audioBufferCache.delete(normalizedUrl);
-  } else if (audioBufferCache.size >= MAX_CACHED_AUDIO_BUFFERS) {
+  }
+  while (
+    audioBufferCache.size >= MAX_CACHED_AUDIO_BUFFERS ||
+    (totalCachedAudioBytes + buffer.length > MAX_CACHED_AUDIO_BYTES &&
+      audioBufferCache.size > 0)
+  ) {
     const oldestKey = audioBufferCache.keys().next().value;
-    if (oldestKey) {
-      audioBufferCache.delete(oldestKey);
+    if (!oldestKey) break;
+    const evicted = audioBufferCache.get(oldestKey);
+    if (evicted) {
+      totalCachedAudioBytes -= evicted.buffer.length;
     }
+    audioBufferCache.delete(oldestKey);
   }
   audioBufferCache.set(normalizedUrl, { buffer, contentType });
+  totalCachedAudioBytes += buffer.length;
 }
 
 function warmTrackBuffer(rawUrl: string): Promise<Buffer | null> {
@@ -142,28 +409,32 @@ function warmTrackBuffer(rawUrl: string): Promise<Buffer | null> {
   if (inFlight) {
     return inFlight;
   }
+  if (activeWarmupCount >= MAX_CONCURRENT_WARMUPS) {
+    return Promise.resolve(null);
+  }
 
+  activeWarmupCount += 1;
   const promise = (async () => {
     try {
-      const res = await fetch(normalizedUrl, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        },
-        redirect: 'follow',
-        signal: AbortSignal.timeout(28000),
-      });
+      const res = await fetchUpstreamAudioWithFallback(
+        normalizedUrl,
+        'GET',
+        '',
+        AbortSignal.timeout(28000)
+      );
       if (!res.ok && res.status !== 206) {
         return null;
       }
       const rawCt = res.headers.get('content-type') || '';
-      if (rawCt.includes('text/html')) {
+      if (rawCt.toLowerCase().includes('text/html')) {
         return null;
       }
-      const ct =
-        rawCt.includes('audio/') || rawCt.includes('mpeg')
-          ? rawCt
-          : 'audio/mpeg';
+      const ct = inferAudioContentType(
+        rawCt,
+        res.headers.get('content-disposition') || '',
+        '',
+        normalizedUrl
+      );
       const arr = await res.arrayBuffer();
       const buf = Buffer.from(arr);
       if (buf.length < 32768) {
@@ -174,6 +445,7 @@ function warmTrackBuffer(rawUrl: string): Promise<Buffer | null> {
     } catch {
       return null;
     } finally {
+      activeWarmupCount = Math.max(0, activeWarmupCount - 1);
       inFlightBufferWarmups.delete(normalizedUrl);
     }
   })();
@@ -1181,15 +1453,16 @@ async function pipeUpstreamAudio(
 
   const incomingRange =
     typeof req.headers.range === 'string' ? req.headers.range.trim() : '';
+  const isFullRangeFromStart = incomingRange === 'bytes=0-';
 
-  // For partial Range probes, trigger a background warmup so subsequent probes/seeks hit RAM in <1ms.
-  // For full GET requests, stream once and populate RAM cache inline (zero duplicate fetch).
-  if (!skipInlineCache && (incomingRange || req.method === 'HEAD')) {
+  // Only warm in background for small probes (e.g. Safari bytes=0-1 or HEAD).
+  // For GET without Range or Chrome's Range: bytes=0-, stream once and cache inline in 1 pass!
+  if (!skipInlineCache && ((incomingRange && !isFullRangeFromStart) || req.method === 'HEAD')) {
     void warmTrackBuffer(normalizedUrl);
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  const timeoutId = setTimeout(() => controller.abort(), 35000);
 
   const onResponseClose = () => {
     if (!res.writableEnded) {
@@ -1199,21 +1472,12 @@ async function pipeUpstreamAudio(
   res.on('close', onResponseClose);
 
   try {
-    const headers: Record<string, string> = {
-      'User-Agent':
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-    };
-
-    if (incomingRange) {
-      headers.Range = incomingRange;
-    }
-
-    const upstream = await fetch(normalizedUrl, {
-      method: req.method === 'HEAD' ? 'HEAD' : 'GET',
-      headers,
-      redirect: 'follow',
-      signal: controller.signal,
-    });
+    const upstream = await fetchUpstreamAudioWithFallback(
+      normalizedUrl,
+      req.method === 'HEAD' ? 'HEAD' : 'GET',
+      incomingRange,
+      controller.signal
+    );
 
     if (!upstream.ok && upstream.status !== 206) {
       res
@@ -1230,13 +1494,13 @@ async function pipeUpstreamAudio(
       return;
     }
 
-    const contentType =
-      rawContentType.includes('audio/') ||
-      rawContentType.includes('mpeg') ||
-      rawContentType.includes('mp4') ||
-      rawContentType.includes('ogg')
-        ? rawContentType
-        : 'audio/mpeg';
+    const contentDisposition = upstream.headers.get('content-disposition') || '';
+    const contentType = inferAudioContentType(
+      rawContentType,
+      contentDisposition,
+      title,
+      normalizedUrl
+    );
     const contentLength = upstream.headers.get('content-length');
     const contentRange = upstream.headers.get('content-range');
     const acceptRanges = upstream.headers.get('accept-ranges') || 'bytes';
@@ -1264,13 +1528,18 @@ async function pipeUpstreamAudio(
       return;
     }
 
+    const startsAtZero =
+      !incomingRange ||
+      (isFullRangeFromStart &&
+        (!contentRange || contentRange.startsWith('bytes 0-')));
     const shouldCacheInline =
       !skipInlineCache &&
-      !incomingRange &&
+      startsAtZero &&
       req.method === 'GET' &&
       (!contentLength || Number(contentLength) <= 22 * 1024 * 1024);
     const cacheChunks: Buffer[] = [];
     let cacheBytes = 0;
+    let streamCompleted = false;
 
     const nodeStream = Readable.fromWeb(
       upstream.body as Parameters<typeof Readable.fromWeb>[0]
@@ -1283,6 +1552,7 @@ async function pipeUpstreamAudio(
         }
       });
       nodeStream.on('end', () => {
+        streamCompleted = true;
         if (cacheBytes > 32768) {
           storeAudioBufferInCache(
             normalizedUrl,
@@ -1293,7 +1563,7 @@ async function pipeUpstreamAudio(
       });
     }
     res.on('close', () => {
-      if (!res.writableEnded) {
+      if (!res.writableEnded && !streamCompleted) {
         nodeStream.destroy();
       }
     });

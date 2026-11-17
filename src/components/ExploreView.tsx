@@ -53,6 +53,7 @@ interface ExploreViewProps {
   downloadProgressMap: Record<string, number>;
   audioQuality: AudioQuality;
   onPlayTrack: (track: Track) => void;
+  onPlayAll?: () => void;
   onDownloadTrack: (track: Track) => void;
   onSaveFileToDevice: (track: Track) => void;
   onDeleteDownload: (track: Track) => void;
@@ -86,6 +87,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
   downloadProgressMap,
   audioQuality,
   onPlayTrack,
+  onPlayAll,
   onDownloadTrack,
   onSaveFileToDevice,
   onDeleteDownload,
@@ -392,6 +394,16 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {!isLoadingApi && onPlayAll && tracks.length > 0 && (
+              <button
+                type="button"
+                onClick={onPlayAll}
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#10B981]/15 hover:bg-[#10B981]/25 text-[#10B981] text-[11px] font-semibold transition-colors whitespace-nowrap"
+              >
+                <Play size={11} fill="currentColor" />
+                <span>Putar Semua</span>
+              </button>
+            )}
             {!isOfflineMode && (
               <button
                 type="button"
