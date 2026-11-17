@@ -19,7 +19,9 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { RepeatMode, Track } from '../types/music';
+import { parseId3FromBytes } from '../utils/id3LyricsParser';
 import type { SyncedLyricLine } from '../utils/musicNormalizer';
+import { getOfflineTrackRecord } from '../utils/indexedDb';
 import { formatTime } from '../utils/playerLogic';
 import { CircularDownloadButton } from './CircularDownloadButton';
 import { CoverArtwork } from './CoverArtwork';
@@ -34,6 +36,8 @@ interface LyricsResponse {
   plainLyrics: string;
   instrumental: boolean;
   source?: string;
+  transcribeConfigured?: boolean;
+  transcribeError?: string;
 }
 
 const clientLyricsCache = new Map<string, LyricsResponse>();
@@ -96,9 +100,20 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
   const [autoScrollLyrics, setAutoScrollLyrics] = useState(true);
   const activeLineRef = useRef<HTMLButtonElement | null>(null);
 
+  const blobToBase64 = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        const commaIdx = result.indexOf(',');
+        resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : '');
+      };
+      reader.onerror = () => reject(new Error('Failed to read audio blob'));
+      reader.readAsDataURL(blob);
+    });
+
   const loadLyrics = useCallback(
     async (targetTrack: Track, force = false) => {
-      if (isOfflineMode) return;
       const cacheKey = targetTrack.id;
       if (!force && clientLyricsCache.has(cacheKey)) {
         setLyricsData(clientLyricsCache.get(cacheKey)!);
@@ -107,21 +122,108 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
 
       setIsLoadingLyrics(true);
       try {
+        // 1. Check offline IndexedDB / local audio Blob directly for embedded ID3 USLT/SYLT lyrics
+        let localAudioBlob: Blob | undefined;
+        let id3TitleHint = targetTrack.title;
+        let id3ArtistHint = targetTrack.artist;
+
+        const offlineRec = await getOfflineTrackRecord(targetTrack.id).catch(() => undefined);
+        if (offlineRec?.audioBlob) {
+          localAudioBlob = offlineRec.audioBlob;
+        } else if (targetTrack.audioUrl.startsWith('blob:')) {
+          const blobRes = await fetch(targetTrack.audioUrl).catch(() => null);
+          if (blobRes && blobRes.ok) {
+            localAudioBlob = await blobRes.blob();
+          }
+        }
+
+        if (localAudioBlob) {
+          const sliceBuf = await localAudioBlob.slice(0, 262144).arrayBuffer();
+          const id3 = parseId3FromBytes(new Uint8Array(sliceBuf));
+          if (id3.title) id3TitleHint = id3.title;
+          if (id3.artist) id3ArtistHint = id3.artist;
+          if (id3.syncedLines.length > 0 || id3.plainLyrics) {
+            const id3Result: LyricsResponse = {
+              found: true,
+              trackName: id3TitleHint,
+              artistName: id3ArtistHint,
+              albumName: id3.album || targetTrack.album,
+              syncedLines: id3.syncedLines,
+              plainLyrics: id3.plainLyrics,
+              instrumental: false,
+              source: 'id3',
+            };
+            clientLyricsCache.set(cacheKey, id3Result);
+            setLyricsData(id3Result);
+            return;
+          }
+        }
+
+        if (isOfflineMode) {
+          setLyricsData({
+            found: false,
+            syncedLines: [],
+            plainLyrics: '',
+            instrumental: false,
+          });
+          return;
+        }
+
+        // 2. Ask server to automatically extract ID3 -> LRCLIB -> Gemini 3.5 Transcribe directly from song audio
         const params = new URLSearchParams({
-          title: targetTrack.title,
-          artist: targetTrack.artist,
+          id: targetTrack.id,
+          title: id3TitleHint,
+          artist: id3ArtistHint,
           album: targetTrack.album,
           duration: String(Math.round(targetTrack.durationSec || 0)),
+          autoFromAudio: '1',
         });
+        if (targetTrack.audioUrl.startsWith('https://')) {
+          params.set('audioUrl', targetTrack.audioUrl);
+        }
+        if (force) {
+          params.set('refresh', '1');
+        }
+
         const res = await fetch(`/api/music/lyrics?${params.toString()}`, {
           credentials: 'include',
-          signal: AbortSignal.timeout(6500),
+          signal: AbortSignal.timeout(45000),
         });
         const ct = (res.headers.get('content-type') || '').toLowerCase();
         if (!res.ok || ct.includes('text/html')) {
           throw new Error('Failed to load lyrics');
         }
-        const json = (await res.json()) as LyricsResponse;
+        let json = (await res.json()) as LyricsResponse;
+
+        // 3. If it's a local phone/desktop MP3 (blob:) and still not found, transcribe directly from uploaded local audio
+        if (
+          !json.found &&
+          !json.instrumental &&
+          localAudioBlob &&
+          localAudioBlob.size <= 18 * 1024 * 1024 &&
+          json.transcribeConfigured
+        ) {
+          const base64Audio = await blobToBase64(localAudioBlob);
+          if (base64Audio) {
+            const uploadRes = await fetch('/api/music/lyrics-from-audio', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                trackId: targetTrack.id,
+                base64Audio,
+                mimeType: localAudioBlob.type || 'audio/mp3',
+                title: id3TitleHint,
+                artist: id3ArtistHint,
+              }),
+              signal: AbortSignal.timeout(45000),
+            }).catch(() => null);
+            if (uploadRes && uploadRes.ok) {
+              json = (await uploadRes.json()) as LyricsResponse;
+            }
+          }
+        }
+
         clientLyricsCache.set(cacheKey, json);
         setLyricsData(json);
       } catch {
@@ -144,6 +246,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
     }
   }, [initialTab, isOpen]);
 
+  // Automatically extract/load lyrics whenever the playing song changes (so Lyrics page & dot badge are ready immediately)
   useEffect(() => {
     setShowYtPlayer(false);
     setAutoScrollLyrics(true);
@@ -152,11 +255,18 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
       return;
     }
     const cached = clientLyricsCache.get(track.id);
-    setLyricsData(cached ?? null);
-    if (isOpen && !isOfflineMode && track.source !== 'radio') {
-      void loadLyrics(track);
+    if (cached) {
+      setLyricsData(cached);
+      return;
     }
-  }, [isOfflineMode, isOpen, loadLyrics, track]);
+    setLyricsData(null);
+    if (track.source === 'radio') return;
+
+    const timer = window.setTimeout(() => {
+      void loadLyrics(track);
+    }, isOpen ? 50 : 500);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, loadLyrics, track]);
 
   const effectiveDuration = track
     ? duration > 0
@@ -382,14 +492,14 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                   }}
                   className="flex-1 overflow-y-auto px-5 py-5 space-y-2.5"
                 >
-                  {isOfflineMode ? (
+                  {isOfflineMode && !hasLyricsAvailable && !isLoadingLyrics ? (
                     <div className="h-full flex flex-col items-center justify-center text-center py-10 space-y-2">
                       <Mic2 size={28} className="text-[#94A3B8]/60" />
                       <p className="text-sm font-medium text-[#F8FAFC]">
                         Mode Offline Aktif
                       </p>
                       <p className="text-xs text-[#94A3B8] max-w-[240px]">
-                        Aktifkan Mode Online untuk memuat lirik lagu secara otomatis dari LRCLIB API.
+                        File ini belum memiliki tag lirik ID3. Aktifkan Mode Online untuk mengekstrak atau mentranskrip lirik otomatis dari lagu.
                       </p>
                     </div>
                   ) : track.source === 'radio' ? (
@@ -399,16 +509,19 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                         Siaran Radio Langsung
                       </p>
                       <p className="text-xs text-[#94A3B8] max-w-[240px]">
-                        Lirik otomatis tersedia untuk lagu Google Drive, YouTube Music, GitHub, Audius, dan Jamendo.
+                        Lirik otomatis tersedia untuk lagu Google Drive, YouTube Music, GitHub, Audius, Jamendo, dan file MP3 HP.
                       </p>
                     </div>
                   ) : isLoadingLyrics ? (
-                    <div className="space-y-3 py-4 animate-pulse">
+                    <div className="space-y-3 py-4">
+                      <p className="text-xs text-[#10B981] font-medium mb-3">
+                        Mengekstrak &amp; mendengarkan lirik langsung dari lagu...
+                      </p>
                       {[80, 65, 90, 55, 78, 60, 85, 70].map((w, idx) => (
                         <div
                           key={idx}
                           style={{ width: `${w}%` }}
-                          className="h-4 rounded bg-[#1E293B]"
+                          className="h-4 rounded bg-[#1E293B] animate-pulse"
                         />
                       ))}
                     </div>
@@ -460,8 +573,10 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                         <p className="text-sm font-medium text-[#F8FAFC]">
                           Lirik belum ditemukan
                         </p>
-                        <p className="text-xs text-[#94A3B8] max-w-[240px]">
-                          Lirik untuk &ldquo;{track.title}&rdquo; belum tersedia di database LRCLIB.
+                        <p className="text-xs text-[#94A3B8] max-w-[250px]">
+                          {lyricsData?.transcribeError
+                            ? lyricsData.transcribeError
+                            : `Lirik otomatis untuk "${track.title}" belum tersedia di tag ID3 maupun LRCLIB.`}
                         </p>
                       </div>
                       <button
@@ -469,13 +584,13 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                         onClick={() => void loadLyrics(track, true)}
                         className="h-9 px-3.5 rounded-lg bg-[#1E293B] hover:bg-[#334155] text-xs font-medium text-[#F8FAFC]"
                       >
-                        Coba Cari Lagi
+                        Ekstrak Ulang dari Lagu
                       </button>
                     </div>
                   )}
                 </div>
 
-                {/* Footer Attribution for LRCLIB */}
+                {/* Footer Attribution for Lyrics Source */}
                 {hasLyricsAvailable && (
                   <div className="px-4 py-2 border-t border-[#1E293B]/70 bg-[#0B0F17]/40 text-[10px] text-[#94A3B8] flex items-center justify-between shrink-0">
                     <span>
@@ -483,7 +598,13 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                         ? 'Lirik Tersinkron • Ketuk baris untuk lompat waktu'
                         : 'Lirik Teks Penuh'}
                     </span>
-                    <span className="text-[#10B981] font-medium">LRCLIB API</span>
+                    <span className="text-[#10B981] font-medium">
+                      {lyricsData?.source === 'id3'
+                        ? 'Tag Audio (ID3)'
+                        : lyricsData?.source === 'audio-transcribe'
+                        ? 'Transkrip Audio Lagu'
+                        : 'LRCLIB API'}
+                    </span>
                   </div>
                 )}
               </div>

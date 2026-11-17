@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { Readable } from 'stream';
 import { fileURLToPath } from 'url';
+import { GoogleGenAI } from '@google/genai';
 import {
   DEFAULT_DRIVE_FOLDER_ID,
   DRIVE_FOLDER_TRACKS,
@@ -10,6 +11,7 @@ import {
   YOUTUBE_MUSIC_AND_ONLINE_TRACKS,
 } from './src/data/tracks.ts';
 import type { Track } from './src/types/music.ts';
+import { parseId3FromBytes } from './src/utils/id3LyricsParser.ts';
 import {
   extractDriveFileId,
   extractDriveFolderId,
@@ -1147,12 +1149,8 @@ async function fetchRadioBrowserStations(
   return cached?.tracks ?? [];
 }
 
-async function fetchLyricsFromLrclib(options: {
-  title: string;
-  artist: string;
-  album?: string;
-  durationSec?: number;
-}): Promise<{
+type LyricsResult = {
+  updatedAt: number;
   found: boolean;
   trackName?: string;
   artistName?: string;
@@ -1161,12 +1159,273 @@ async function fetchLyricsFromLrclib(options: {
   plainLyrics: string;
   instrumental: boolean;
   source: string;
+  transcribeConfigured?: boolean;
+  transcribeError?: string;
+};
+
+function getGeminiClient(): GoogleGenAI | null {
+  const apiKey = (process.env.GEMINI_API_KEY || '').trim();
+  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') return null;
+  return new GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
+    },
+  });
+}
+
+function resolveSongAudioLocation(
+  trackId?: string,
+  explicitAudioUrl?: string
+): { staticPath?: string; upstreamUrl?: string } {
+  const cleanId = (trackId || '').trim();
+  const safeBasename = cleanId.replace(/[^a-zA-Z0-9_-]/g, '');
+  if (safeBasename) {
+    const staticDiskPath = path.resolve(
+      __dirname,
+      'public/audio/tracks',
+      `${safeBasename}.mp3`
+    );
+    if (fs.existsSync(staticDiskPath)) {
+      return { staticPath: staticDiskPath };
+    }
+  }
+
+  const indexed = cleanId
+    ? ALL_INDEXED_MAP.get(cleanId) || PRE_ENRICHED_DRIVE_MAP.get(cleanId)
+    : undefined;
+  if (indexed) {
+    if (indexed.audioUrl.startsWith('/audio/')) {
+      const localPath = path.resolve(
+        __dirname,
+        'public',
+        indexed.audioUrl.replace(/^\/+/, '')
+      );
+      if (fs.existsSync(localPath)) {
+        return { staticPath: localPath };
+      }
+    }
+    if (indexed.audioUrl.startsWith('https://')) {
+      return { upstreamUrl: indexed.audioUrl };
+    }
+  }
+
+  if (explicitAudioUrl && isSafeAudioProxyUrl(explicitAudioUrl)) {
+    return { upstreamUrl: explicitAudioUrl };
+  }
+  if (cleanId.startsWith('gdrive-')) {
+    const fileId = cleanId.replace(/^gdrive-/, '');
+    return {
+      upstreamUrl: `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download&confirm=t`,
+    };
+  }
+  if (cleanId.startsWith('jamendo-')) {
+    const jId = cleanId.replace(/^jamendo-/, '');
+    return {
+      upstreamUrl: `https://prod-1.storage.jamendo.com/?trackid=${encodeURIComponent(jId)}&format=mp32`,
+    };
+  }
+  return {};
+}
+
+async function loadAudioBytesForSong(
+  trackId?: string,
+  explicitAudioUrl?: string,
+  headerOnly = false
+): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const loc = resolveSongAudioLocation(trackId, explicitAudioUrl);
+
+  if (loc.staticPath) {
+    try {
+      if (headerOnly) {
+        const fd = await fs.promises.open(loc.staticPath, 'r');
+        try {
+          const buf = Buffer.alloc(262144);
+          const { bytesRead } = await fd.read(buf, 0, buf.length, 0);
+          return { buffer: buf.subarray(0, bytesRead), mimeType: 'audio/mp3' };
+        } finally {
+          await fd.close();
+        }
+      }
+      const stat = await fs.promises.stat(loc.staticPath);
+      if (stat.size <= 18 * 1024 * 1024) {
+        const buf = await fs.promises.readFile(loc.staticPath);
+        return { buffer: buf, mimeType: 'audio/mp3' };
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  if (!loc.upstreamUrl) return null;
+  const normalizedUrl = normalizeUpstreamAudioUrl(loc.upstreamUrl);
+
+  const cached = audioBufferCache.get(normalizedUrl);
+  if (cached) {
+    if (headerOnly) {
+      return {
+        buffer: cached.buffer.subarray(0, 262144),
+        mimeType: cached.contentType === 'audio/mpeg' ? 'audio/mp3' : cached.contentType,
+      };
+    }
+    if (cached.buffer.length <= 18 * 1024 * 1024) {
+      return {
+        buffer: cached.buffer,
+        mimeType: cached.contentType === 'audio/mpeg' ? 'audio/mp3' : cached.contentType,
+      };
+    }
+  }
+
+  try {
+    const res = await fetchUpstreamAudioWithFallback(
+      normalizedUrl,
+      'GET',
+      headerOnly ? 'bytes=0-262143' : '',
+      AbortSignal.timeout(headerOnly ? 7000 : 25000)
+    );
+    if (!res.ok && res.status !== 206) return null;
+    const rawCt = (res.headers.get('content-type') || '').toLowerCase();
+    if (rawCt.includes('text/html')) return null;
+
+    const cl = Number(res.headers.get('content-length') || '0');
+    if (!headerOnly && cl > 18 * 1024 * 1024) return null;
+
+    const ct = inferAudioContentType(
+      rawCt,
+      res.headers.get('content-disposition') || '',
+      '',
+      normalizedUrl
+    );
+    const arr = await res.arrayBuffer();
+    const buf = Buffer.from(arr);
+    if (!headerOnly && buf.length > 32768 && buf.length <= 18 * 1024 * 1024) {
+      storeAudioBufferInCache(normalizedUrl, buf, ct);
+    }
+    return {
+      buffer: buf,
+      mimeType: ct === 'audio/mpeg' ? 'audio/mp3' : ct,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function transcribeLyricsFromAudioBuffer(
+  audioBuffer: Buffer,
+  mimeType: string,
+  titleHint?: string,
+  artistHint?: string
+): Promise<{
+  found: boolean;
+  syncedLines: SyncedLyricLine[];
+  plainLyrics: string;
+  instrumental: boolean;
+  error?: string;
 }> {
+  const ai = getGeminiClient();
+  if (!ai) {
+    return {
+      found: false,
+      syncedLines: [],
+      plainLyrics: '',
+      instrumental: false,
+      error: 'GEMINI_API_KEY belum dikonfigurasi.',
+    };
+  }
+
+  if (audioBuffer.length < 4096 || audioBuffer.length > 18 * 1024 * 1024) {
+    return {
+      found: false,
+      syncedLines: [],
+      plainLyrics: '',
+      instrumental: false,
+      error: 'Ukuran audio tidak didukung untuk transkrip otomatis (maks 18 MB).',
+    };
+  }
+
+  const normalizedMime =
+    mimeType === 'audio/mpeg' ? 'audio/mp3' : mimeType.split(';')[0] || 'audio/mp3';
+  const contextLine =
+    titleHint && artistHint
+      ? `Song reference metadata (use only to disambiguate spelling if vocals are unclear): "${titleHint}" by "${artistHint}".`
+      : '';
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-transcribe',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: normalizedMime,
+              data: audioBuffer.toString('base64'),
+            },
+          },
+          {
+            text: `Transcribe the sung song lyrics directly from this audio track into synchronized LRC format ([mm:ss.xx] line of lyrics) matching when each line is actually sung in the audio. ${contextLine} Preserve the original sung language accurately (Indonesian, English, Javanese, etc.). Output only LRC lyric lines (or [Instrumental] if there are no sung vocals).`,
+          },
+        ],
+      },
+    });
+
+    const rawText = (response.text || '').trim();
+    if (!rawText) {
+      return {
+        found: false,
+        syncedLines: [],
+        plainLyrics: '',
+        instrumental: false,
+      };
+    }
+
+    if (/^\[?instrumental\]?$/i.test(rawText)) {
+      return {
+        found: true,
+        syncedLines: [],
+        plainLyrics: '',
+        instrumental: true,
+      };
+    }
+
+    const syncedLines = parseLrcLyrics(rawText);
+    const plainLyrics =
+      syncedLines.length > 0
+        ? syncedLines.map((l) => l.text).join('\n')
+        : rawText.replace(/\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]/g, '').trim();
+
+    return {
+      found: Boolean(syncedLines.length > 0 || plainLyrics),
+      syncedLines,
+      plainLyrics,
+      instrumental: false,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Gagal mentranskrip audio lagu.';
+    return {
+      found: false,
+      syncedLines: [],
+      plainLyrics: '',
+      instrumental: false,
+      error: message,
+    };
+  }
+}
+
+async function fetchLyricsFromLrclib(options: {
+  title: string;
+  artist: string;
+  album?: string;
+  durationSec?: number;
+}): Promise<LyricsResult> {
   const cleanTitle = options.title
     .replace(/\(Official.*?\)|\[Official.*?\]|\(Lirik.*?\)|\(Lyrics.*?\)/gi, '')
     .trim();
   const cleanArtist =
-    options.artist === 'ReyTune Collection' || options.artist === 'File Musik HP'
+    options.artist === 'ReyTune Collection' ||
+    options.artist === 'File Musik HP' ||
+    options.artist === 'DJ Viral TikTok Remix'
       ? ''
       : options.artist.trim();
 
@@ -1188,12 +1447,12 @@ async function fetchLyricsFromLrclib(options: {
     plainLyrics?: string | null;
   };
 
-  const toResult = (rec: LrcRecord | null | undefined) => {
+  const toResult = (rec: LrcRecord | null | undefined): LyricsResult => {
     if (!rec) {
       return {
         updatedAt: now,
         found: false,
-        syncedLines: [] as SyncedLyricLine[],
+        syncedLines: [],
         plainLyrics: '',
         instrumental: false,
         source: 'lrclib',
@@ -1281,8 +1540,138 @@ async function fetchLyricsFromLrclib(options: {
     // Graceful fallback if LRCLIB is unreachable
   }
 
-  const empty = toResult(null);
-  return empty;
+  return toResult(null);
+}
+
+async function resolveAutomaticSongLyrics(options: {
+  trackId?: string;
+  audioUrl?: string;
+  title: string;
+  artist: string;
+  album?: string;
+  durationSec?: number;
+  autoFromAudio?: boolean;
+  forceRefresh?: boolean;
+}): Promise<LyricsResult> {
+  const now = Date.now();
+  const transcribeConfigured = Boolean(getGeminiClient());
+  const idCacheKey = options.trackId ? `id::${options.trackId}` : '';
+
+  if (!options.forceRefresh && idCacheKey) {
+    const cached = lyricsCache.get(idCacheKey);
+    if (cached && cached.found && now - cached.updatedAt < 24 * 60 * 60 * 1000) {
+      return { ...cached, transcribeConfigured };
+    }
+  }
+
+  // Tier 1: Extract embedded USLT / SYLT lyrics & real TIT2/TPE1 tags directly from the song's audio file
+  let id3Title: string | undefined;
+  let id3Artist: string | undefined;
+  if (options.trackId || options.audioUrl) {
+    const headerSlice = await loadAudioBytesForSong(
+      options.trackId,
+      options.audioUrl,
+      true
+    );
+    if (headerSlice) {
+      const id3 = parseId3FromBytes(headerSlice.buffer);
+      id3Title = id3.title;
+      id3Artist = id3.artist;
+      if (id3.syncedLines.length > 0 || id3.plainLyrics) {
+        const result: LyricsResult = {
+          updatedAt: now,
+          found: true,
+          trackName: id3.title || options.title,
+          artistName: id3.artist || options.artist,
+          albumName: id3.album || options.album,
+          syncedLines: id3.syncedLines,
+          plainLyrics: id3.plainLyrics,
+          instrumental: false,
+          source: 'id3',
+          transcribeConfigured,
+        };
+        if (idCacheKey) lyricsCache.set(idCacheKey, result);
+        return result;
+      }
+    }
+  }
+
+  // Tier 2: Lookup synced lyrics via LRCLIB using track metadata and any ID3-embedded TIT2/TPE1 tags
+  const lrclibHit = await fetchLyricsFromLrclib({
+    title: options.title,
+    artist: options.artist,
+    album: options.album,
+    durationSec: options.durationSec,
+  });
+  if (lrclibHit.found) {
+    const result = { ...lrclibHit, transcribeConfigured };
+    if (idCacheKey) lyricsCache.set(idCacheKey, result);
+    return result;
+  }
+
+  if (
+    id3Title &&
+    (id3Title.toLowerCase() !== options.title.toLowerCase() ||
+      (id3Artist && id3Artist.toLowerCase() !== options.artist.toLowerCase()))
+  ) {
+    const id3LrclibHit = await fetchLyricsFromLrclib({
+      title: id3Title,
+      artist: id3Artist || options.artist,
+      album: options.album,
+      durationSec: options.durationSec,
+    });
+    if (id3LrclibHit.found) {
+      const result = { ...id3LrclibHit, transcribeConfigured };
+      if (idCacheKey) lyricsCache.set(idCacheKey, result);
+      return result;
+    }
+  }
+
+  // Tier 3: Automatic Audio-to-Lyrics transcription directly from the song audio (Gemini 3.5 Transcribe)
+  let transcribeError: string | undefined;
+  if (options.autoFromAudio !== false && transcribeConfigured) {
+    const fullAudio = await loadAudioBytesForSong(
+      options.trackId,
+      options.audioUrl,
+      false
+    );
+    if (fullAudio) {
+      const transcribed = await transcribeLyricsFromAudioBuffer(
+        fullAudio.buffer,
+        fullAudio.mimeType,
+        id3Title || options.title,
+        id3Artist || options.artist
+      );
+      if (transcribed.found) {
+        const result: LyricsResult = {
+          updatedAt: now,
+          found: true,
+          trackName: id3Title || options.title,
+          artistName: id3Artist || options.artist,
+          albumName: options.album,
+          syncedLines: transcribed.syncedLines,
+          plainLyrics: transcribed.plainLyrics,
+          instrumental: transcribed.instrumental,
+          source: 'audio-transcribe',
+          transcribeConfigured,
+        };
+        if (idCacheKey) lyricsCache.set(idCacheKey, result);
+        return result;
+      }
+      transcribeError = transcribed.error;
+    }
+  }
+
+  return {
+    updatedAt: now,
+    found: false,
+    syncedLines: [],
+    plainLyrics: '',
+    instrumental: false,
+    source: 'none',
+    transcribeConfigured,
+    transcribeError,
+  };
 }
 
 function filterCatalogByGenre(
@@ -1673,26 +2062,88 @@ self.addEventListener('activate', (event) => {
     });
   });
 
-  // Synchronized & Plain Song Lyrics endpoint backed by LRCLIB (Zero API Key)
+  // Automatic Song-Derived Lyrics endpoint (ID3 USLT/SYLT -> LRCLIB -> Gemini 3.5 Transcribe)
   app.get('/api/music/lyrics', async (req, res) => {
+    const trackId = String(req.query.id || '').trim();
+    const audioUrl = String(req.query.audioUrl || '').trim();
     const title = String(req.query.title || '').trim();
     const artist = String(req.query.artist || '').trim();
     const album = String(req.query.album || '').trim();
     const durationSec = Number(req.query.duration || 0) || 0;
+    const autoFromAudio = String(req.query.autoFromAudio || '1') !== '0';
+    const forceRefresh = String(req.query.refresh || '') === '1';
 
-    if (!title) {
+    if (!title && !trackId) {
       res.status(400).json({ found: false, syncedLines: [], plainLyrics: '', error: 'Missing track title' });
       return;
     }
 
-    const result = await fetchLyricsFromLrclib({
-      title,
+    const result = await resolveAutomaticSongLyrics({
+      trackId,
+      audioUrl,
+      title: title || trackId,
       artist,
       album,
       durationSec,
+      autoFromAudio,
+      forceRefresh,
     });
     res.json(result);
   });
+
+  // Extract or transcribe lyrics directly from uploaded local audio bytes (for mobile device MP3s)
+  app.post(
+    '/api/music/lyrics-from-audio',
+    express.json({ limit: '24mb' }),
+    async (req, res) => {
+      const body = (req.body || {}) as {
+        trackId?: string;
+        base64Audio?: string;
+        mimeType?: string;
+        title?: string;
+        artist?: string;
+      };
+      if (!body.base64Audio) {
+        res.status(400).json({ found: false, syncedLines: [], plainLyrics: '', error: 'Missing audio payload' });
+        return;
+      }
+
+      const audioBuffer = Buffer.from(body.base64Audio, 'base64');
+      const id3 = parseId3FromBytes(audioBuffer.subarray(0, 262144));
+      if (id3.syncedLines.length > 0 || id3.plainLyrics) {
+        res.json({
+          found: true,
+          trackName: id3.title || body.title,
+          artistName: id3.artist || body.artist,
+          albumName: id3.album,
+          syncedLines: id3.syncedLines,
+          plainLyrics: id3.plainLyrics,
+          instrumental: false,
+          source: 'id3',
+          transcribeConfigured: Boolean(getGeminiClient()),
+        });
+        return;
+      }
+
+      const transcribed = await transcribeLyricsFromAudioBuffer(
+        audioBuffer,
+        body.mimeType || 'audio/mp3',
+        id3.title || body.title,
+        id3.artist || body.artist
+      );
+      res.json({
+        found: transcribed.found,
+        trackName: id3.title || body.title,
+        artistName: id3.artist || body.artist,
+        syncedLines: transcribed.syncedLines,
+        plainLyrics: transcribed.plainLyrics,
+        instrumental: transcribed.instrumental,
+        source: transcribed.found ? 'audio-transcribe' : 'none',
+        transcribeConfigured: Boolean(getGeminiClient()),
+        transcribeError: transcribed.error,
+      });
+    }
+  );
 
   // Direct YouTube Music search & trending API endpoint
   app.get('/api/music/ytmusic', async (req, res) => {
