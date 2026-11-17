@@ -7,9 +7,27 @@ const STORAGE_KEYS = {
   PLAYLISTS: 'offlinetune_playlists_v5',
   QUALITY: 'offlinetune_audio_quality_v1',
   OFFLINE_SIM: 'offlinetune_offline_mode_v1',
+  DRIVE_URL: 'reytune_custom_drive_url_v1',
 } as const;
 
 const AUDIO_CACHE_NAME = 'offlinetune-audio-v1';
+
+export function loadPersistedDriveFolderUrl(defaultUrl: string): string {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.DRIVE_URL);
+    return raw && raw.trim() ? raw.trim() : defaultUrl;
+  } catch {
+    return defaultUrl;
+  }
+}
+
+export function savePersistedDriveFolderUrl(url: string): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.DRIVE_URL, url.trim());
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 export function loadPersistedDownloadedIds(): string[] {
   try {

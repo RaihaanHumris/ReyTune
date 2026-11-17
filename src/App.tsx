@@ -365,13 +365,22 @@ export default function App() {
           throw new Error('Auth handshake required');
         }
         if (!res.ok) throw new Error('Discover request failed');
-        const data = (await res.json()) as { tracks?: Track[]; live?: boolean };
+        const data = (await res.json()) as {
+          tracks?: Track[];
+          totalDriveTracks?: number;
+          live?: boolean;
+          driveError?: string;
+        };
+        if (forceRefresh && data.driveError) {
+          showToast(data.driveError, 'warning');
+        }
         if (Array.isArray(data.tracks) && data.tracks.length > 0) {
           setOnlineFeedTracks(data.tracks);
           setIsLiveApi(Boolean(data.live));
-          if (forceRefresh) {
+          if (forceRefresh && !data.driveError) {
+            const driveCount = data.totalDriveTracks ?? data.tracks.length;
             showToast(
-              `Disinkronkan ${data.tracks.length} lagu dari Google Drive`,
+              `Disinkronkan ${driveCount} lagu dari link Google Drive`,
               'success'
             );
           }
@@ -380,6 +389,9 @@ export default function App() {
         }
       } catch {
         setIsLiveApi(false);
+        if (forceRefresh) {
+          showToast('Gagal memuat link Google Drive. Coba lagi.', 'warning');
+        }
       } finally {
         setIsLoadingApi(false);
       }
@@ -390,9 +402,10 @@ export default function App() {
   const handleSyncDriveFolder = useCallback(
     (folderUrl: string) => {
       setDriveFolderUrl(folderUrl);
-      void fetchDiscoverFeed(activeGenre, folderUrl, true);
+      setActiveGenre('drive');
+      void fetchDiscoverFeed('drive', folderUrl, true);
     },
-    [activeGenre, fetchDiscoverFeed]
+    [fetchDiscoverFeed]
   );
 
   useEffect(() => {

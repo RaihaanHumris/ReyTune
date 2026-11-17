@@ -199,9 +199,17 @@ export function parseYouTubeMusicSearchResponse(
   return items;
 }
 
-export function extractDriveFolderId(input: string): string | null {
+export function extractDriveFileId(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
+  const fileMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]{15,})/);
+  if (fileMatch?.[1]) return fileMatch[1];
+  return null;
+}
+
+export function extractDriveFolderId(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed || extractDriveFileId(trimmed)) return null;
   const folderMatch = trimmed.match(/\/folders\/([a-zA-Z0-9_-]{15,})/);
   if (folderMatch?.[1]) return folderMatch[1];
   const idParamMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]{15,})/);

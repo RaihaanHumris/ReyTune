@@ -210,21 +210,26 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
           </div>
 
           {showDriveInput && (
-            <form onSubmit={handleDriveSubmit} className="flex items-center gap-2 pt-1">
-              <input
-                type="text"
-                value={customDriveInput}
-                onChange={(e) => setCustomDriveInput(e.target.value)}
-                placeholder="https://drive.google.com/drive/folders/..."
-                aria-label="Google Drive folder URL"
-                className="flex-1 min-w-0 h-9 px-3 rounded-lg bg-[#0B0F17] border border-[#1E293B] text-xs text-[#F8FAFC] placeholder:text-[#94A3B8]/60 focus:outline-none focus:border-[#10B981]"
-              />
-              <button
-                type="submit"
-                className="h-9 px-3 rounded-lg bg-[#10B981] hover:bg-[#059669] text-[#0B0F17] text-xs font-semibold shrink-0"
-              >
-                Muat Drive
-              </button>
+            <form onSubmit={handleDriveSubmit} className="space-y-1.5 pt-1">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={customDriveInput}
+                  onChange={(e) => setCustomDriveInput(e.target.value)}
+                  placeholder="Link folder / file Google Drive publik..."
+                  aria-label="Google Drive folder or file URL"
+                  className="flex-1 min-w-0 h-9 px-3 rounded-lg bg-[#0B0F17] border border-[#1E293B] text-xs text-[#F8FAFC] placeholder:text-[#94A3B8]/60 focus:outline-none focus:border-[#10B981]"
+                />
+                <button
+                  type="submit"
+                  className="h-9 px-3 rounded-lg bg-[#10B981] hover:bg-[#059669] text-[#0B0F17] text-xs font-semibold shrink-0"
+                >
+                  Muat Drive
+                </button>
+              </div>
+              <p className="text-[10px] text-[#94A3B8]">
+                Mendukung link Folder atau 1 File MP3/M4A yang diset &quot;Siapa saja yang memiliki link&quot;.
+              </p>
             </form>
           )}
         </div>

@@ -11,6 +11,7 @@ import {
 } from './src/data/tracks.ts';
 import type { Track } from './src/types/music.ts';
 import {
+  extractDriveFileId,
   extractDriveFolderId,
   isSafeAudioProxyUrl,
   normalizeAudiusTrack,
@@ -382,10 +383,72 @@ async function resolveYouTubeMusicAudioUrl(
   return artistFullFallback?.audioUrl || null;
 }
 
+async function getSingleDriveFileTrack(
+  fileId: string
+): Promise<{ folderId: string; tracks: Track[]; live: boolean; error?: string }> {
+  const downloadUrl = `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download&confirm=t`;
+  try {
+    const headRes = await fetch(downloadUrl, {
+      method: 'HEAD',
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(6500),
+    });
+
+    const ct = (headRes.headers.get('content-type') || '').toLowerCase();
+    if (!headRes.ok || ct.includes('text/html')) {
+      return {
+        folderId: fileId,
+        tracks: [],
+        live: false,
+        error:
+          'File Google Drive tidak bisa diakses (masih Dibatasi/Private). Ubah berbagi ke "Siapa saja yang memiliki link".',
+      };
+    }
+
+    const disp = headRes.headers.get('content-disposition') || '';
+    const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(disp);
+    const plainMatch = /filename="([^"]+)"/i.exec(disp);
+    let fileName = `Drive Audio ${fileId.slice(0, 6)}.mp3`;
+    if (utf8Match?.[1]) {
+      fileName = decodeURIComponent(utf8Match[1]);
+    } else if (plainMatch?.[1]) {
+      fileName = plainMatch[1];
+    }
+
+    const rawTrack = normalizeDriveTrack(fileId, fileName, 0);
+    const enriched = await enrichTrackWithItunes(rawTrack);
+    PRE_ENRICHED_DRIVE_MAP.set(enriched.id, enriched);
+    ALL_INDEXED_MAP.set(enriched.id, enriched);
+    void warmTrackBuffer(enriched.audioUrl);
+
+    return {
+      folderId: fileId,
+      tracks: [enriched],
+      live: true,
+    };
+  } catch {
+    return {
+      folderId: fileId,
+      tracks: [],
+      live: false,
+      error: 'Gagal terhubung ke link file Google Drive tersebut.',
+    };
+  }
+}
+
 async function getDriveFolderTracks(
   rawFolderInput?: string,
   forceRefresh = false
-): Promise<{ folderId: string; tracks: Track[]; live: boolean }> {
+): Promise<{ folderId: string; tracks: Track[]; live: boolean; error?: string }> {
+  const singleFileId = extractDriveFileId(rawFolderInput || '');
+  if (singleFileId) {
+    return getSingleDriveFileTrack(singleFileId);
+  }
+
   const folderId =
     extractDriveFolderId(rawFolderInput || '') || DEFAULT_DRIVE_FOLDER_ID;
 
@@ -413,7 +476,13 @@ async function getDriveFolderTracks(
       if (folderId === DEFAULT_DRIVE_FOLDER_ID) {
         return { folderId, tracks: DRIVE_FOLDER_TRACKS, live: true };
       }
-      return { folderId, tracks: [], live: false };
+      return {
+        folderId,
+        tracks: [],
+        live: false,
+        error:
+          'Folder Google Drive kosong atau masih Private/Dibatasi. Pastikan akses diset ke "Siapa saja yang memiliki link" dan berisi file .mp3/.m4a.',
+      };
     }
 
     const resolvedTracks: Track[] = [];
@@ -470,6 +539,12 @@ async function getDriveFolderTracks(
       finalTracks = dedupeTracks([...orderedDefault, ...extraNew]);
     } else {
       finalTracks = dedupeTracks(resolvedTracks);
+      for (const t of finalTracks) {
+        ALL_INDEXED_MAP.set(t.id, t);
+      }
+      for (const t of finalTracks.slice(0, 3)) {
+        void warmTrackBuffer(t.audioUrl);
+      }
     }
 
     driveFolderCache.set(folderId, { updatedAt: now, tracks: finalTracks });
@@ -478,7 +553,13 @@ async function getDriveFolderTracks(
     if (folderId === DEFAULT_DRIVE_FOLDER_ID) {
       return { folderId, tracks: DRIVE_FOLDER_TRACKS, live: true };
     }
-    return { folderId, tracks: cached?.tracks ?? [], live: false };
+    return {
+      folderId,
+      tracks: cached?.tracks ?? [],
+      live: false,
+      error:
+        'Gagal membaca folder Google Drive. Pastikan link publik ("Siapa saja yang memiliki link").',
+    };
   }
 }
 
@@ -924,7 +1005,8 @@ self.addEventListener('activate', (event) => {
         totalDriveTracks: driveResult.tracks.length,
         totalYtMusicTracks: YOUTUBE_MUSIC_AND_ONLINE_TRACKS.length,
         tracks: combined,
-        live: true,
+        live: driveResult.live,
+        driveError: driveResult.error,
       });
     } catch {
       const fallback = filterCatalogByGenre(
