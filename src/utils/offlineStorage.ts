@@ -2,9 +2,9 @@ import { INITIAL_DOWNLOADED_IDS, INITIAL_LIKED_IDS, INITIAL_PLAYLISTS } from '..
 import { AudioQuality, Playlist } from '../types/music';
 
 const STORAGE_KEYS = {
-  DOWNLOADED: 'offlinetune_downloaded_ids_v4',
-  LIKED: 'offlinetune_liked_ids_v4',
-  PLAYLISTS: 'offlinetune_playlists_v4',
+  DOWNLOADED: 'offlinetune_downloaded_ids_v5',
+  LIKED: 'offlinetune_liked_ids_v5',
+  PLAYLISTS: 'offlinetune_playlists_v5',
   QUALITY: 'offlinetune_audio_quality_v1',
   OFFLINE_SIM: 'offlinetune_offline_mode_v1',
 } as const;

@@ -82,8 +82,8 @@ export const INITIAL_DOWNLOADED_IDS: string[] = [
 
 export const INITIAL_LIKED_IDS: string[] = [
   'gdrive-1WXDFZVgemjM-cVXAmCPjwaxFh6mKsCU6', // Tulus - Hati-Hati di Jalan (Full MP3)
-  'ytm-full-bernadya-satubulan', // Bernadya - Satu Bulan (Full MP3)
-  'ytm-full-mahalini-sisarasa', // Mahalini - Sisa Rasa (Full MP3)
+  'ytm-ht-3107029', // Nadin Amizah - Sorai (Full MP3)
+  'ytm-ht-1779711', // Sheila On 7 - Film Favorit (Full MP3)
   'gdrive-1kGr6fzchzsRNddi6mcUNQsolcloZ8cwi', // Raim Laode - Komang (Full MP3)
   'gdrive-16cLyy8UNVKLnICEz8jmIUs6wcKOkdmM5', // Nadhif Basalamah - penjaga hati (Full MP3)
   'gdrive-1xDR6Tvrur1Lu6PzpC2Q4-XlAgVH0JkaX', // The 1975 - About You (Full MP3)
@@ -93,7 +93,7 @@ export const INITIAL_LIKED_IDS: string[] = [
 export const INITIAL_PLAYLISTS: Playlist[] = [
   {
     id: 'pl-ytmusic-hits',
-    name: 'Hits Indonesia Full MP3 (Bernadya, Mahalini, Sheila On 7)',
+    name: 'Hits Indonesia Full MP3 (Sheila On 7, Dewa 19, Nadin Amizah)',
     trackIds: YOUTUBE_MUSIC_AND_ONLINE_TRACKS.slice(0, 15).map((t) => t.id),
     createdAt: 1794860000000,
   },

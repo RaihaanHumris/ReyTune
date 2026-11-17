@@ -107,7 +107,8 @@ export default function App() {
 
   // Audio player state
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const activeObjectUrlRef = useRef<string | null>(null);
+  const offlineBlobUrlsRef = useRef<Record<string, string>>({});
+  const playRequestIdRef = useRef<number>(0);
   const [queue, setQueue] = useState<Track[]>(CATALOG_TRACKS);
   const [currentTrackId, setCurrentTrackId] = useState<string | null>(
     CATALOG_TRACKS[0]?.id ?? null
@@ -185,7 +186,7 @@ export default function App() {
     []
   );
 
-  // Hydrate downloaded tracks metadata from IndexedDB on startup
+  // Hydrate downloaded tracks metadata & Blob URLs from IndexedDB on startup
   useEffect(() => {
     let active = true;
     getAllOfflineTrackRecords().then((records) => {
@@ -195,6 +196,9 @@ export default function App() {
       for (const rec of records) {
         map[rec.id] = rec.track;
         ids.push(rec.id);
+        if (rec.audioBlob && !offlineBlobUrlsRef.current[rec.id]) {
+          offlineBlobUrlsRef.current[rec.id] = URL.createObjectURL(rec.audioBlob);
+        }
       }
       setSavedTrackMap((prev) => ({ ...prev, ...map }));
       setDownloadedIdList((prev) => Array.from(new Set([...prev, ...ids])));
@@ -332,29 +336,62 @@ export default function App() {
     };
   }, []);
 
-  // Revoke ObjectURL on unmount
+  // Revoke ObjectURLs on unmount
   useEffect(() => {
+    const blobMap = offlineBlobUrlsRef.current;
     return () => {
-      if (activeObjectUrlRef.current) {
-        URL.revokeObjectURL(activeObjectUrlRef.current);
+      for (const url of Object.values(blobMap)) {
+        URL.revokeObjectURL(url);
       }
     };
   }, []);
 
-  // Load audio source (prefers local IndexedDB blob when available)
-  const loadAudioSourceForTrack = useCallback(async (track: Track): Promise<string> => {
-    if (activeObjectUrlRef.current) {
-      URL.revokeObjectURL(activeObjectUrlRef.current);
-      activeObjectUrlRef.current = null;
-    }
-    const offlineRec = await getOfflineTrackRecord(track.id);
-    if (offlineRec?.audioBlob) {
-      const objUrl = URL.createObjectURL(offlineRec.audioBlob);
-      activeObjectUrlRef.current = objUrl;
-      return objUrl;
+  // Synchronous audio source resolver so mobile browsers never lose user-gesture activation
+  const getAudioSourceSync = useCallback((track: Track): string => {
+    const cachedBlobUrl = offlineBlobUrlsRef.current[track.id];
+    if (cachedBlobUrl) {
+      return cachedBlobUrl;
     }
     return getPlayableAudioSrc(track);
   }, []);
+
+  // Start playback synchronously within the user tap event (required on iOS Safari & Mobile Chrome)
+  const triggerSyncPlayback = useCallback(
+    (track: Track) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+
+      const reqId = ++playRequestIdRef.current;
+      const targetSrc = getAudioSourceSync(track);
+
+      try {
+        audio.pause();
+      } catch {
+        // Ignore pause error
+      }
+
+      audio.src = targetSrc;
+      setIsPlaying(true);
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            if (playRequestIdRef.current === reqId) {
+              setIsPlaying(true);
+            }
+          })
+          .catch((err: unknown) => {
+            if (playRequestIdRef.current !== reqId) return;
+            const errName = err instanceof Error ? err.name : '';
+            // Ignore AbortError caused by rapid track switching or stream buffering handoff
+            if (errName === 'AbortError') return;
+            setIsPlaying(false);
+          });
+      }
+    },
+    [getAudioSourceSync]
+  );
 
   // Offline auto-fallback when switching to offline mode
   useEffect(() => {
@@ -365,13 +402,10 @@ export default function App() {
         setCurrentTrackId(firstOffline.id);
         setCurrentTime(0);
         setDuration(firstOffline.durationSec);
-        void loadAudioSourceForTrack(firstOffline).then((src) => {
-          if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.src = src;
-            audioRef.current.load();
-          }
-        });
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = getAudioSourceSync(firstOffline);
+        }
         setIsPlaying(false);
         showToast(`Switched to offline track: ${firstOffline.title}`, 'info');
       } else {
@@ -384,25 +418,21 @@ export default function App() {
   }, [
     currentTrackId,
     downloadedIds,
+    getAudioSourceSync,
     isOfflineMode,
     knownTracks,
-    loadAudioSourceForTrack,
     showToast,
   ]);
 
-  // Ensure initial audio src is set on mount
+  // Ensure initial audio src is set on mount without blocking mobile tap playback
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentTrack || audio.src) return;
-    void loadAudioSourceForTrack(currentTrack).then((src) => {
-      if (audioRef.current && !audioRef.current.src) {
-        audioRef.current.src = src;
-      }
-    });
-  }, [currentTrack, loadAudioSourceForTrack]);
+    audio.src = getAudioSourceSync(currentTrack);
+  }, [currentTrack, getAudioSourceSync]);
 
   const handlePlayTrack = useCallback(
-    async (track: Track, queueOverride?: Track[]) => {
+    (track: Track, queueOverride?: Track[]) => {
       const check = canPlayTrack(track.id, isOfflineMode, downloadedIds);
       if (!check.allowed) {
         showToast(check.reason ?? 'Track unavailable offline', 'warning');
@@ -419,15 +449,25 @@ export default function App() {
       if (!audio) return;
 
       if (currentTrackId === track.id) {
-        if (isPlaying) {
+        if (isPlaying && !audio.paused) {
           audio.pause();
           setIsPlaying(false);
         } else {
-          try {
-            await audio.play();
+          if (!audio.src || audio.error) {
+            triggerSyncPlayback(track);
+          } else {
+            const reqId = ++playRequestIdRef.current;
             setIsPlaying(true);
-          } catch {
-            setIsPlaying(false);
+            const p = audio.play();
+            if (p !== undefined) {
+              p.catch((err: unknown) => {
+                if (playRequestIdRef.current !== reqId) return;
+                const errName = err instanceof Error ? err.name : '';
+                if (errName === 'AbortError') return;
+                // Reload and retry once if the preloaded element was stale on mobile
+                triggerSyncPlayback(track);
+              });
+            }
           }
         }
         return;
@@ -436,15 +476,7 @@ export default function App() {
       setCurrentTrackId(track.id);
       setCurrentTime(0);
       setDuration(track.durationSec);
-      const src = await loadAudioSourceForTrack(track);
-      audio.src = src;
-      audio.load();
-      try {
-        await audio.play();
-        setIsPlaying(true);
-      } catch {
-        setIsPlaying(false);
-      }
+      triggerSyncPlayback(track);
     },
     [
       currentTrackId,
@@ -453,12 +485,12 @@ export default function App() {
       isOfflineMode,
       isPlaying,
       knownTracks,
-      loadAudioSourceForTrack,
       showToast,
+      triggerSyncPlayback,
     ]
   );
 
-  const handleTogglePlay = useCallback(async () => {
+  const handleTogglePlay = useCallback(() => {
     const audio = audioRef.current;
     if (!audio || !currentTrack) return;
 
@@ -468,18 +500,24 @@ export default function App() {
       return;
     }
 
-    if (isPlaying) {
+    if (isPlaying && !audio.paused) {
       audio.pause();
       setIsPlaying(false);
     } else {
-      try {
-        if (!audio.src) {
-          audio.src = await loadAudioSourceForTrack(currentTrack);
-        }
-        await audio.play();
+      if (!audio.src || audio.error) {
+        triggerSyncPlayback(currentTrack);
+      } else {
+        const reqId = ++playRequestIdRef.current;
         setIsPlaying(true);
-      } catch {
-        setIsPlaying(false);
+        const p = audio.play();
+        if (p !== undefined) {
+          p.catch((err: unknown) => {
+            if (playRequestIdRef.current !== reqId) return;
+            const errName = err instanceof Error ? err.name : '';
+            if (errName === 'AbortError') return;
+            triggerSyncPlayback(currentTrack);
+          });
+        }
       }
     }
   }, [
@@ -487,12 +525,12 @@ export default function App() {
     downloadedIds,
     isOfflineMode,
     isPlaying,
-    loadAudioSourceForTrack,
     showToast,
+    triggerSyncPlayback,
   ]);
 
   const handleStepTrack = useCallback(
-    async (direction: 'next' | 'prev') => {
+    (direction: 'next' | 'prev') => {
       const effectiveQueue = isOfflineMode
         ? queue.filter((t) => downloadedIds.has(t.id))
         : queue;
@@ -524,31 +562,20 @@ export default function App() {
       const nextTrack = effectiveQueue[nextIdx];
       if (!nextTrack) return;
 
-      const audio = audioRef.current;
-      if (!audio) return;
-
       setCurrentTrackId(nextTrack.id);
       setCurrentTime(0);
       setDuration(nextTrack.durationSec);
-      const src = await loadAudioSourceForTrack(nextTrack);
-      audio.src = src;
-      audio.load();
-      try {
-        await audio.play();
-        setIsPlaying(true);
-      } catch {
-        setIsPlaying(false);
-      }
+      triggerSyncPlayback(nextTrack);
     },
     [
       currentTrackId,
       downloadedIds,
       isOfflineMode,
-      loadAudioSourceForTrack,
       queue,
       repeatMode,
       shuffle,
       showToast,
+      triggerSyncPlayback,
     ]
   );
 
@@ -833,6 +860,10 @@ export default function App() {
 
         const record = await saveOfflineTrackBlob(track, blob);
         await cacheTrackAudioOffline(fetchUrl);
+        if (offlineBlobUrlsRef.current[track.id]) {
+          URL.revokeObjectURL(offlineBlobUrlsRef.current[track.id]);
+        }
+        offlineBlobUrlsRef.current[track.id] = URL.createObjectURL(blob);
 
         setSavedTrackMap((prev) => ({ ...prev, [track.id]: record.track }));
         setDownloadedIdList((prev) =>
@@ -894,6 +925,10 @@ export default function App() {
 
   const handleDeleteDownload = useCallback(
     (track: Track) => {
+      if (offlineBlobUrlsRef.current[track.id]) {
+        URL.revokeObjectURL(offlineBlobUrlsRef.current[track.id]);
+        delete offlineBlobUrlsRef.current[track.id];
+      }
       setDownloadedIdList((prev) => prev.filter((id) => id !== track.id));
       void deleteOfflineTrackRecord(track.id);
       void removeCachedTrackAudio(getPlayableAudioSrc(track));
@@ -903,6 +938,10 @@ export default function App() {
   );
 
   const handleClearAllDownloads = useCallback(() => {
+    for (const url of Object.values(offlineBlobUrlsRef.current)) {
+      URL.revokeObjectURL(url);
+    }
+    offlineBlobUrlsRef.current = {};
     setDownloadedIdList([]);
     setSavedTrackMap({});
     void clearOfflineTrackDatabase();

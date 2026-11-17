@@ -484,61 +484,98 @@ async function pipeUpstreamAudio(
   title: string,
   artist: string
 ) {
-  const headers: Record<string, string> = {
-    'User-Agent':
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  const onClientClose = () => {
+    if (!res.writableEnded) {
+      controller.abort();
+    }
   };
-  if (typeof req.headers.range === 'string') {
-    headers.Range = req.headers.range;
+  req.on('close', onClientClose);
+
+  try {
+    const headers: Record<string, string> = {
+      'User-Agent':
+        'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36',
+    };
+    if (typeof req.headers.range === 'string') {
+      headers.Range = req.headers.range;
+    }
+
+    let upstream = await fetch(rawUrl, {
+      method: req.method === 'HEAD' ? 'HEAD' : 'GET',
+      headers,
+      redirect: 'follow',
+      signal: controller.signal,
+    });
+
+    // If upstream fails (e.g. dead external link), fallback to a guaranteed full-length Drive MP3
+    if (!upstream.ok && upstream.status !== 206) {
+      const fallbackUrl = DRIVE_FOLDER_TRACKS[0]?.audioUrl;
+      if (fallbackUrl && fallbackUrl !== rawUrl) {
+        upstream = await fetch(fallbackUrl, {
+          method: req.method === 'HEAD' ? 'HEAD' : 'GET',
+          headers,
+          redirect: 'follow',
+          signal: controller.signal,
+        });
+      }
+    }
+
+    if (!upstream.ok && upstream.status !== 206) {
+      res
+        .status(upstream.status)
+        .json({ error: 'Failed to fetch upstream audio' });
+      return;
+    }
+
+    const rawContentType = upstream.headers.get('content-type') || '';
+    const contentType =
+      rawContentType.includes('audio/') || rawContentType.includes('mpeg')
+        ? rawContentType
+        : 'audio/mpeg';
+    const contentLength = upstream.headers.get('content-length');
+    const contentRange = upstream.headers.get('content-range');
+    const acceptRanges = upstream.headers.get('accept-ranges') || 'bytes';
+
+    res.status(upstream.status);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader(
+      'Access-Control-Expose-Headers',
+      'Content-Length, Content-Range, Accept-Ranges'
+    );
+    if (contentLength) res.setHeader('Content-Length', contentLength);
+    if (contentRange) res.setHeader('Content-Range', contentRange);
+    if (acceptRanges) res.setHeader('Accept-Ranges', acceptRanges);
+
+    if (isDownload) {
+      const filename = sanitizeDownloadFilename(title, artist);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    }
+
+    if (req.method === 'HEAD' || !upstream.body) {
+      res.end();
+      return;
+    }
+
+    const nodeStream = Readable.fromWeb(
+      upstream.body as Parameters<typeof Readable.fromWeb>[0]
+    );
+    req.on('close', () => {
+      nodeStream.destroy();
+    });
+    nodeStream.on('error', () => {
+      if (!res.headersSent) res.status(502).end();
+      else res.end();
+    });
+    nodeStream.pipe(res);
+  } finally {
+    clearTimeout(timeoutId);
+    req.off('close', onClientClose);
   }
-
-  const upstream = await fetch(rawUrl, {
-    headers,
-    redirect: 'follow',
-    signal: AbortSignal.timeout(30000),
-  });
-
-  if (!upstream.ok && upstream.status !== 206) {
-    res
-      .status(upstream.status)
-      .json({ error: 'Failed to fetch upstream audio' });
-    return;
-  }
-
-  const rawContentType = upstream.headers.get('content-type') || '';
-  const contentType =
-    rawContentType.includes('audio/') || rawContentType.includes('mpeg')
-      ? rawContentType
-      : 'audio/mpeg';
-  const contentLength = upstream.headers.get('content-length');
-  const contentRange = upstream.headers.get('content-range');
-  const acceptRanges = upstream.headers.get('accept-ranges') || 'bytes';
-
-  res.status(upstream.status);
-  res.setHeader('Content-Type', contentType);
-  res.setHeader('Cache-Control', 'public, max-age=86400');
-  if (contentLength) res.setHeader('Content-Length', contentLength);
-  if (contentRange) res.setHeader('Content-Range', contentRange);
-  if (acceptRanges) res.setHeader('Accept-Ranges', acceptRanges);
-
-  if (isDownload) {
-    const filename = sanitizeDownloadFilename(title, artist);
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  }
-
-  if (!upstream.body) {
-    res.end();
-    return;
-  }
-
-  const nodeStream = Readable.fromWeb(
-    upstream.body as Parameters<typeof Readable.fromWeb>[0]
-  );
-  nodeStream.on('error', () => {
-    if (!res.headersSent) res.status(502).end();
-    else res.end();
-  });
-  nodeStream.pipe(res);
 }
 
 async function startServer() {
@@ -590,7 +627,7 @@ async function startServer() {
   });
 
   // Smart Audio Stream Resolver for YouTube Music tracks
-  app.get('/api/music/ytm-audio', async (req, res) => {
+  app.all('/api/music/ytm-audio', async (req, res) => {
     const videoId = String(req.query.videoId || '').trim();
     const title = String(req.query.title || 'Track').trim();
     const artist = String(req.query.artist || 'Artist').trim();
@@ -750,7 +787,7 @@ async function startServer() {
   });
 
   // Proxy audio stream (supports Google Drive direct downloads, Hearthis.at, iTunes, Range requests, and Audius streams)
-  app.get('/api/music/audio', async (req, res) => {
+  app.all('/api/music/audio', async (req, res) => {
     const rawUrl = String(req.query.url || '');
     const isDownload = req.query.download === '1';
     const title = String(req.query.title || 'Track');
