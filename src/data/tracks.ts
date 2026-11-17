@@ -1,10 +1,10 @@
-import { Playlist, Track } from '../types/music';
+import type { Playlist, Track } from '../types/music.ts';
 import {
   DEFAULT_DRIVE_FOLDER_ID,
   DEFAULT_DRIVE_FOLDER_URL,
   DRIVE_FOLDER_TRACKS,
-} from './driveTracks';
-import { YOUTUBE_MUSIC_AND_ONLINE_TRACKS } from './ytMusicTracks';
+} from './driveTracks.ts';
+import { YOUTUBE_MUSIC_AND_ONLINE_TRACKS } from './ytMusicTracks.ts';
 
 export {
   DEFAULT_DRIVE_FOLDER_ID,

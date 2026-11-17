@@ -1,4 +1,4 @@
-import type { Track } from '../types/music';
+import type { Track } from '../types/music.ts';
 
 export interface RawAudiusTrack {
   id?: string | number;
@@ -25,6 +25,48 @@ export interface RawHearthisTrack {
   user?: {
     username?: string;
   } | null;
+}
+
+export interface RawJamendoTrack {
+  id?: string | number;
+  name?: string;
+  duration?: number | string;
+  artist_id?: string | number;
+  artist_name?: string;
+  album_name?: string;
+  album_id?: string | number;
+  license_ccurl?: string;
+  releasedate?: string;
+  album_image?: string;
+  image?: string;
+  audio?: string;
+  audiodownload?: string;
+  audiodownload_allowed?: boolean;
+  musicinfo?: {
+    tags?: {
+      genres?: string[];
+      instruments?: string[];
+      vartags?: string[];
+    };
+  };
+}
+
+export interface RawRadioStation {
+  stationuuid?: string;
+  name?: string;
+  url?: string;
+  url_resolved?: string;
+  favicon?: string;
+  tags?: string;
+  country?: string;
+  state?: string;
+  bitrate?: number;
+  codec?: string;
+}
+
+export interface SyncedLyricLine {
+  timeSec: number;
+  text: string;
 }
 
 const FALLBACK_COVERS = [
@@ -125,6 +167,48 @@ export function normalizeHearthisTrack(raw: RawHearthisTrack): Track | null {
   };
 }
 
+export function normalizeJamendoTrack(
+  raw: RawJamendoTrack,
+  index = 0
+): Track | null {
+  const rawId = raw.id;
+  const rawTitle = String(raw.name || '').trim();
+  if (!rawId || !rawTitle) return null;
+
+  const idStr = String(rawId).trim();
+  const durationSec = Math.max(30, Math.round(Number(raw.duration) || 180));
+  const rawGenre = raw.musicinfo?.tags?.genres?.[0]?.trim();
+  const formattedGenre = rawGenre
+    ? rawGenre.charAt(0).toUpperCase() + rawGenre.slice(1)
+    : 'Jamendo Indie';
+
+  const audioUrl =
+    (raw.audio && raw.audio.startsWith('http') ? raw.audio : '') ||
+    (raw.audiodownload && raw.audiodownload.startsWith('http')
+      ? raw.audiodownload
+      : '') ||
+    `https://prod-1.storage.jamendo.com/?trackid=${encodeURIComponent(idStr)}&format=mp32`;
+
+  const coverUrl =
+    raw.album_image ||
+    raw.image ||
+    FALLBACK_COVERS[index % FALLBACK_COVERS.length];
+
+  return {
+    id: `jamendo-${idStr}`,
+    title: rawTitle,
+    artist: raw.artist_name?.trim() || 'Jamendo Artist',
+    album: raw.album_name?.trim() || 'Jamendo Release',
+    genre: formattedGenre,
+    durationSec,
+    fileSizeMb: estimateMp3SizeMb(durationSec),
+    coverUrl,
+    audioUrl,
+    source: 'jamendo',
+    isPreview: false,
+  };
+}
+
 export function parseYouTubeMusicSearchResponse(
   data: unknown,
   maxItems = 25
@@ -216,6 +300,92 @@ export function extractDriveFolderId(input: string): string | null {
   if (idParamMatch?.[1]) return idParamMatch[1];
   if (/^[a-zA-Z0-9_-]{15,60}$/.test(trimmed)) return trimmed;
   return null;
+}
+
+export interface GitHubRepoTarget {
+  owner: string;
+  repo: string;
+  ref?: string;
+  path: string;
+}
+
+export function extractGitHubRepoSource(input: string): GitHubRepoTarget | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(
+    /^https?:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)(?:\/tree\/([^/]+)(?:\/(.*))?)?\/?$/i
+  );
+  if (!match) return null;
+  return {
+    owner: match[1],
+    repo: match[2].replace(/\.git$/i, ''),
+    ref: match[3] ? decodeURIComponent(match[3]) : undefined,
+    path: match[4] ? decodeURIComponent(match[4]).replace(/^\/+|\/+$/g, '') : '',
+  };
+}
+
+export function normalizeRadioStationTrack(
+  raw: RawRadioStation,
+  index = 0
+): Track | null {
+  const id = String(raw.stationuuid || '').trim();
+  const name = String(raw.name || '').trim();
+  const streamUrl = String(raw.url_resolved || raw.url || '').trim();
+  if (!id || !name || !streamUrl.startsWith('https://')) return null;
+
+  const rawTag = String(raw.tags || '')
+    .split(',')
+    .map((t) => t.trim())
+    .find(Boolean);
+
+  return {
+    id: `radio-${id}`,
+    title: name,
+    artist: [raw.state, raw.country].filter(Boolean).join(', ') || 'Radio Live ID',
+    album: raw.codec
+      ? `Live Radio (${raw.codec}${raw.bitrate ? ` · ${raw.bitrate}kbps` : ''})`
+      : 'Live Radio Stream',
+    genre: rawTag
+      ? rawTag.charAt(0).toUpperCase() + rawTag.slice(1)
+      : 'Radio Indonesia',
+    durationSec: 3600,
+    fileSizeMb: 24,
+    coverUrl:
+      raw.favicon && raw.favicon.startsWith('https://')
+        ? raw.favicon
+        : FALLBACK_COVERS[index % FALLBACK_COVERS.length],
+    audioUrl: streamUrl,
+    source: 'radio',
+    isPreview: false,
+  };
+}
+
+export function parseLrcLyrics(lrcText: string): SyncedLyricLine[] {
+  if (!lrcText || typeof lrcText !== 'string') return [];
+  const lines = lrcText.split(/\r?\n/);
+  const parsed: SyncedLyricLine[] = [];
+
+  for (const line of lines) {
+    const tagMatches = Array.from(line.matchAll(/\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]/g));
+    if (tagMatches.length === 0) continue;
+    const text = line.replace(/\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]/g, '').trim();
+    if (!text) continue;
+    for (const m of tagMatches) {
+      const mins = Number(m[1]);
+      const secs = Number(m[2]);
+      const fracRaw = m[3] || '0';
+      const frac = Number(fracRaw) / Math.pow(10, fracRaw.length);
+      if (Number.isFinite(mins) && Number.isFinite(secs) && Number.isFinite(frac)) {
+        parsed.push({
+          timeSec: Math.round((mins * 60 + secs + frac) * 100) / 100,
+          text,
+        });
+      }
+    }
+  }
+
+  parsed.sort((a, b) => a.timeSec - b.timeSec);
+  return parsed;
 }
 
 function decodeHtmlEntities(str: string): string {

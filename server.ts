@@ -13,15 +13,23 @@ import type { Track } from './src/types/music.ts';
 import {
   extractDriveFileId,
   extractDriveFolderId,
+  extractGitHubRepoSource,
   isSafeAudioProxyUrl,
   normalizeAudiusTrack,
   normalizeDriveTrack,
   normalizeHearthisTrack,
+  normalizeJamendoTrack,
+  normalizeRadioStationTrack,
+  parseDriveAudioFilename,
   parseDriveEmbeddedFolderHtml,
+  parseLrcLyrics,
   parseYouTubeMusicSearchResponse,
   sanitizeDownloadFilename,
   type RawAudiusTrack,
   type RawHearthisTrack,
+  type RawJamendoTrack,
+  type RawRadioStation,
+  type SyncedLyricLine,
 } from './src/utils/musicNormalizer.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -56,6 +64,41 @@ const driveFolderCache = new Map<
 
 // Cache of resolved audio URLs for YouTube Music tracks (key -> resolved upstream audio URL)
 const ytmAudioUrlCache = new Map<string, string>();
+
+// Jamendo API v3.0 configuration & short-TTL query cache
+const jamendoQueryCache = new Map<
+  string,
+  { updatedAt: number; tracks: Track[] }
+>();
+
+// Cache for LRCLIB lyrics & Radio Browser stations
+const lyricsCache = new Map<
+  string,
+  {
+    updatedAt: number;
+    found: boolean;
+    trackName?: string;
+    artistName?: string;
+    albumName?: string;
+    syncedLines: SyncedLyricLine[];
+    plainLyrics: string;
+    instrumental: boolean;
+    source: string;
+  }
+>();
+
+const radioStationCache = new Map<
+  string,
+  { updatedAt: number; tracks: Track[] }
+>();
+
+function getJamendoClientId(): string {
+  const raw = (process.env.JAMENDO_CLIENT_ID || '').trim();
+  if (!raw || raw === 'MY_JAMENDO_CLIENT_ID' || raw === 'YOUR_JAMENDO_CLIENT_ID') {
+    return '';
+  }
+  return raw;
+}
 
 // In-memory LRU cache of full MP3 track buffers for instant (<1ms) HTTP 206 Range responses
 const MAX_CACHED_AUDIO_BUFFERS = 30;
@@ -440,10 +483,146 @@ async function getSingleDriveFileTrack(
   }
 }
 
+async function getGitHubRepoTracks(
+  rawUrl: string
+): Promise<{ folderId: string; tracks: Track[]; live: boolean; error?: string }> {
+  const target = extractGitHubRepoSource(rawUrl);
+  if (!target) {
+    return {
+      folderId: rawUrl,
+      tracks: [],
+      live: false,
+      error: 'Link GitHub tidak valid.',
+    };
+  }
+
+  const cacheKey = `gh:${target.owner}/${target.repo}/${target.ref || 'default'}/${target.path}`;
+  const cached = driveFolderCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && now - cached.updatedAt < 5 * 60 * 1000) {
+    return { folderId: cacheKey, tracks: cached.tracks, live: true };
+  }
+
+  type GitHubContentItem = {
+    type?: string;
+    name?: string;
+    path?: string;
+    sha?: string;
+    size?: number;
+    download_url?: string | null;
+  };
+
+  async function listAudioFiles(dirPath: string, depth = 0): Promise<GitHubContentItem[]> {
+    const apiPath = dirPath
+      .split('/')
+      .filter(Boolean)
+      .map((seg) => encodeURIComponent(seg))
+      .join('/');
+    const apiUrl = `https://api.github.com/repos/${encodeURIComponent(target!.owner)}/${encodeURIComponent(target!.repo)}/contents/${apiPath}${target!.ref ? `?ref=${encodeURIComponent(target!.ref)}` : ''}`;
+    const res = await fetch(apiUrl, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'ReyTune/1.0',
+      },
+      signal: AbortSignal.timeout(6500),
+    });
+    if (!res.ok) {
+      throw new Error(`GitHub API HTTP ${res.status}`);
+    }
+    const items = (await res.json()) as GitHubContentItem[];
+    if (!Array.isArray(items)) return [];
+
+    const audioFiles = items.filter(
+      (item) =>
+        item.type === 'file' &&
+        Boolean(item.download_url) &&
+        /\.(mp3|m4a|wav|ogg|flac)$/i.test(item.name || '')
+    );
+
+    if (audioFiles.length > 0 || depth >= 1) {
+      return audioFiles;
+    }
+
+    const candidateDirs = items
+      .filter((item) => item.type === 'dir' && item.path)
+      .slice(0, 4);
+    for (const dir of candidateDirs) {
+      const nested = await listAudioFiles(dir.path!, depth + 1).catch(() => []);
+      if (nested.length > 0) {
+        audioFiles.push(...nested);
+      }
+    }
+    return audioFiles;
+  }
+
+  try {
+    const audioItems = await listAudioFiles(target.path);
+    if (audioItems.length === 0) {
+      return {
+        folderId: cacheKey,
+        tracks: [],
+        live: false,
+        error:
+          'Repositori GitHub tidak memiliki file audio (.mp3/.m4a/.wav/.ogg/.flac). Pastikan repositori bersifat publik.',
+      };
+    }
+
+    const tracks: Track[] = audioItems.slice(0, 100).map((item, idx) => {
+      const fileName = item.name || `Track ${idx + 1}.mp3`;
+      const parsed = parseDriveAudioFilename(fileName);
+      const id = `github-${(item.sha || String(idx)).slice(0, 16)}`;
+      const sizeMb = item.size
+        ? Math.max(0.5, Math.round((item.size / (1024 * 1024)) * 10) / 10)
+        : 3.5;
+      return {
+        id,
+        title: parsed.title,
+        artist: parsed.artist,
+        album: `${target.owner}/${target.repo}`,
+        genre: parsed.genre,
+        durationSec: 215,
+        fileSizeMb: sizeMb,
+        coverUrl:
+          'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
+        audioUrl: item.download_url!,
+        source: 'github',
+        isPreview: false,
+      };
+    });
+
+    const enrichedSubset = await Promise.all(
+      tracks.slice(0, 8).map((t) => enrichTrackWithItunes(t))
+    );
+    const mergedTracks = dedupeTracks([...enrichedSubset, ...tracks.slice(8)]);
+    for (const t of mergedTracks) {
+      ALL_INDEXED_MAP.set(t.id, t);
+    }
+    driveFolderCache.set(cacheKey, { updatedAt: now, tracks: mergedTracks });
+
+    return {
+      folderId: cacheKey,
+      tracks: mergedTracks,
+      live: true,
+    };
+  } catch {
+    return {
+      folderId: cacheKey,
+      tracks: cached?.tracks ?? [],
+      live: false,
+      error:
+        'Gagal membaca repositori GitHub. Pastikan repositori publik dan URL benar.',
+    };
+  }
+}
+
 async function getDriveFolderTracks(
   rawFolderInput?: string,
   forceRefresh = false
 ): Promise<{ folderId: string; tracks: Track[]; live: boolean; error?: string }> {
+  if (extractGitHubRepoSource(rawFolderInput || '')) {
+    return getGitHubRepoTracks(rawFolderInput || '');
+  }
+
   const singleFileId = extractDriveFileId(rawFolderInput || '');
   if (singleFileId) {
     return getSingleDriveFileTrack(singleFileId);
@@ -580,6 +759,258 @@ async function fetchAudiusTracks(query: string, limit = 15): Promise<Track[]> {
   } catch {
     return [];
   }
+}
+
+async function fetchJamendoTracks(options: {
+  query?: string;
+  tags?: string;
+  order?: string;
+  limit?: number;
+}): Promise<{ configured: boolean; tracks: Track[]; error?: string }> {
+  const clientId = getJamendoClientId();
+  if (!clientId) {
+    return {
+      configured: false,
+      tracks: [],
+      error:
+        'JAMENDO_CLIENT_ID belum diatur. Tambahkan JAMENDO_CLIENT_ID dari devportal.jamendo.com di Secrets untuk memuat lagu Jamendo.',
+    };
+  }
+
+  const q = (options.query || '').trim();
+  const tags = (options.tags || '').trim();
+  const order = (options.order || (q ? 'relevance' : 'popularity_month')).trim();
+  const limit = Math.min(50, Math.max(1, options.limit || 25));
+
+  const cacheKey = `${q.toLowerCase()}::${tags.toLowerCase()}::${order}::${limit}`;
+  const cached = jamendoQueryCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && now - cached.updatedAt < 3 * 60 * 1000) {
+    return { configured: true, tracks: cached.tracks };
+  }
+
+  try {
+    const params = new URLSearchParams({
+      client_id: clientId,
+      format: 'json',
+      limit: String(limit),
+      order,
+      include: 'musicinfo',
+      imagesize: '600',
+      audioformat: 'mp32',
+    });
+    if (q) params.set('namesearch', q);
+    if (tags) params.set('tags', tags);
+
+    const res = await fetchJsonWithTimeout<{
+      headers?: { status?: string; code?: number; error_message?: string };
+      results?: RawJamendoTrack[];
+    }>(`https://api.jamendo.com/v3.0/tracks/?${params.toString()}`, 5500);
+
+    if (res?.headers?.status === 'failed') {
+      return {
+        configured: true,
+        tracks: [],
+        error: res.headers.error_message || 'Jamendo API request failed',
+      };
+    }
+
+    const rawList = Array.isArray(res?.results) ? res.results : [];
+    const tracks = rawList
+      .map((item, idx) => normalizeJamendoTrack(item, idx))
+      .filter((t): t is Track => t !== null);
+
+    for (const t of tracks) {
+      ALL_INDEXED_MAP.set(t.id, t);
+    }
+
+    jamendoQueryCache.set(cacheKey, { updatedAt: now, tracks });
+    return { configured: true, tracks };
+  } catch {
+    return {
+      configured: true,
+      tracks: cached?.tracks ?? [],
+      error: 'Gagal terhubung ke Jamendo API. Coba beberapa saat lagi.',
+    };
+  }
+}
+
+async function fetchRadioBrowserStations(
+  countryCode = 'ID',
+  limit = 25
+): Promise<Track[]> {
+  const code = (countryCode || 'ID').trim().toUpperCase();
+  const cached = radioStationCache.get(code);
+  const now = Date.now();
+  if (cached && now - cached.updatedAt < 5 * 60 * 1000) {
+    return cached.tracks;
+  }
+
+  const mirrors = [
+    `https://de1.api.radio-browser.info/json/stations/bycountrycodeexact/${encodeURIComponent(code)}?limit=${limit}&order=clickcount&reverse=true&hidebroken=true`,
+    `https://fr1.api.radio-browser.info/json/stations/bycountrycodeexact/${encodeURIComponent(code)}?limit=${limit}&order=clickcount&reverse=true&hidebroken=true`,
+    `https://nl1.api.radio-browser.info/json/stations/bycountrycodeexact/${encodeURIComponent(code)}?limit=${limit}&order=clickcount&reverse=true&hidebroken=true`,
+  ];
+
+  for (const url of mirrors) {
+    try {
+      const rawStations = await fetchJsonWithTimeout<RawRadioStation[]>(url, 4500);
+      if (!Array.isArray(rawStations)) continue;
+      const tracks = dedupeTracks(
+        rawStations
+          .map((item, idx) => normalizeRadioStationTrack(item, idx))
+          .filter((t): t is Track => t !== null)
+      );
+      if (tracks.length > 0) {
+        for (const t of tracks) {
+          ALL_INDEXED_MAP.set(t.id, t);
+        }
+        radioStationCache.set(code, { updatedAt: now, tracks });
+        return tracks;
+      }
+    } catch {
+      // Try next Radio Browser mirror
+    }
+  }
+  return cached?.tracks ?? [];
+}
+
+async function fetchLyricsFromLrclib(options: {
+  title: string;
+  artist: string;
+  album?: string;
+  durationSec?: number;
+}): Promise<{
+  found: boolean;
+  trackName?: string;
+  artistName?: string;
+  albumName?: string;
+  syncedLines: SyncedLyricLine[];
+  plainLyrics: string;
+  instrumental: boolean;
+  source: string;
+}> {
+  const cleanTitle = options.title
+    .replace(/\(Official.*?\)|\[Official.*?\]|\(Lirik.*?\)|\(Lyrics.*?\)/gi, '')
+    .trim();
+  const cleanArtist =
+    options.artist === 'ReyTune Collection' || options.artist === 'File Musik HP'
+      ? ''
+      : options.artist.trim();
+
+  const cacheKey = `${cleanArtist.toLowerCase()}::${cleanTitle.toLowerCase()}`;
+  const cached = lyricsCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && now - cached.updatedAt < 24 * 60 * 60 * 1000) {
+    return cached;
+  }
+
+  type LrcRecord = {
+    id?: number;
+    trackName?: string;
+    name?: string;
+    artistName?: string;
+    albumName?: string;
+    instrumental?: boolean;
+    syncedLyrics?: string | null;
+    plainLyrics?: string | null;
+  };
+
+  const toResult = (rec: LrcRecord | null | undefined) => {
+    if (!rec) {
+      return {
+        updatedAt: now,
+        found: false,
+        syncedLines: [] as SyncedLyricLine[],
+        plainLyrics: '',
+        instrumental: false,
+        source: 'lrclib',
+      };
+    }
+    const syncedLines = rec.syncedLyrics ? parseLrcLyrics(rec.syncedLyrics) : [];
+    const plainLyrics = (rec.plainLyrics || '').trim();
+    const found = Boolean(rec.instrumental || syncedLines.length > 0 || plainLyrics);
+    return {
+      updatedAt: now,
+      found,
+      trackName: rec.trackName || rec.name || cleanTitle,
+      artistName: rec.artistName || cleanArtist,
+      albumName: rec.albumName || options.album,
+      syncedLines,
+      plainLyrics,
+      instrumental: Boolean(rec.instrumental),
+      source: 'lrclib',
+    };
+  };
+
+  try {
+    if (cleanTitle && cleanArtist) {
+      const getParams = new URLSearchParams({
+        track_name: cleanTitle,
+        artist_name: cleanArtist,
+      });
+      if (options.album && !options.album.includes('Single')) {
+        getParams.set('album_name', options.album);
+      }
+      if (options.durationSec && options.durationSec > 30) {
+        getParams.set('duration', String(Math.round(options.durationSec)));
+      }
+
+      const exactRes = await fetch(
+        `https://lrclib.net/api/get?${getParams.toString()}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'ReyTune/1.0 (https://reytune.app)',
+          },
+          signal: AbortSignal.timeout(4500),
+        }
+      ).catch(() => null);
+
+      if (exactRes && exactRes.ok) {
+        const hit = (await exactRes.json()) as LrcRecord;
+        const parsed = toResult(hit);
+        if (parsed.found) {
+          lyricsCache.set(cacheKey, parsed);
+          return parsed;
+        }
+      }
+    }
+
+    const q = [cleanArtist, cleanTitle].filter(Boolean).join(' ').trim();
+    if (q) {
+      const searchRes = await fetch(
+        `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'ReyTune/1.0 (https://reytune.app)',
+          },
+          signal: AbortSignal.timeout(5000),
+        }
+      ).catch(() => null);
+
+      if (searchRes && searchRes.ok) {
+        const list = (await searchRes.json()) as LrcRecord[];
+        if (Array.isArray(list) && list.length > 0) {
+          const best =
+            list.find((r) => Boolean(r.syncedLyrics)) ||
+            list.find((r) => Boolean(r.plainLyrics)) ||
+            list[0];
+          const parsed = toResult(best);
+          if (parsed.found) {
+            lyricsCache.set(cacheKey, parsed);
+            return parsed;
+          }
+        }
+      }
+    }
+  } catch {
+    // Graceful fallback if LRCLIB is unreachable
+  }
+
+  const empty = toResult(null);
+  return empty;
 }
 
 function filterCatalogByGenre(
@@ -731,18 +1162,21 @@ async function pipeUpstreamAudio(
   res: express.Response,
   isDownload: boolean,
   title: string,
-  artist: string
+  artist: string,
+  skipInlineCache = false
 ) {
   const normalizedUrl = normalizeUpstreamAudioUrl(rawUrl);
 
   // 1. Serve immediately (<1ms) if the full MP3 is already in our RAM buffer cache
-  const cached = audioBufferCache.get(normalizedUrl);
-  if (cached) {
-    // Refresh LRU order
-    audioBufferCache.delete(normalizedUrl);
-    audioBufferCache.set(normalizedUrl, cached);
-    serveCachedAudioBuffer(cached, req, res, isDownload, title, artist);
-    return;
+  if (!skipInlineCache) {
+    const cached = audioBufferCache.get(normalizedUrl);
+    if (cached) {
+      // Refresh LRU order
+      audioBufferCache.delete(normalizedUrl);
+      audioBufferCache.set(normalizedUrl, cached);
+      serveCachedAudioBuffer(cached, req, res, isDownload, title, artist);
+      return;
+    }
   }
 
   const incomingRange =
@@ -750,7 +1184,7 @@ async function pipeUpstreamAudio(
 
   // For partial Range probes, trigger a background warmup so subsequent probes/seeks hit RAM in <1ms.
   // For full GET requests, stream once and populate RAM cache inline (zero duplicate fetch).
-  if (incomingRange || req.method === 'HEAD') {
+  if (!skipInlineCache && (incomingRange || req.method === 'HEAD')) {
     void warmTrackBuffer(normalizedUrl);
   }
 
@@ -831,6 +1265,7 @@ async function pipeUpstreamAudio(
     }
 
     const shouldCacheInline =
+      !skipInlineCache &&
       !incomingRange &&
       req.method === 'GET' &&
       (!contentLength || Number(contentLength) <= 22 * 1024 * 1024);
@@ -914,6 +1349,7 @@ self.addEventListener('activate', (event) => {
       driveTracksCount: DRIVE_FOLDER_TRACKS.length,
       ytMusicTracksCount: YOUTUBE_MUSIC_AND_ONLINE_TRACKS.length,
       totalCatalogCount: ALL_INDEXED_TRACKS.length,
+      jamendoConfigured: Boolean(getJamendoClientId()),
     });
   });
 
@@ -930,6 +1366,62 @@ self.addEventListener('activate', (event) => {
       live: result.live,
       tracks: result.tracks,
     });
+  });
+
+  // Direct Jamendo Music API v3.0 endpoint
+  app.get('/api/music/jamendo', async (req, res) => {
+    const q = String(req.query.q || '').trim();
+    const tags = String(req.query.tags || req.query.tag || '').trim();
+    const limit = Number(req.query.limit || 25) || 25;
+    const result = await fetchJamendoTracks({
+      query: q,
+      tags,
+      order: q ? 'relevance' : 'popularity_month',
+      limit,
+    });
+    res.json({
+      configured: result.configured,
+      query: q,
+      tags,
+      count: result.tracks.length,
+      tracks: result.tracks,
+      live: result.configured && !result.error,
+      error: result.error,
+    });
+  });
+
+  // Direct Radio Browser API endpoint (Indonesian & Global Live Radio, Zero API Key)
+  app.get('/api/music/radio', async (req, res) => {
+    const country = String(req.query.country || 'ID').trim();
+    const limit = Number(req.query.limit || 25) || 25;
+    const tracks = await fetchRadioBrowserStations(country, limit);
+    res.json({
+      country,
+      count: tracks.length,
+      tracks,
+      live: true,
+    });
+  });
+
+  // Synchronized & Plain Song Lyrics endpoint backed by LRCLIB (Zero API Key)
+  app.get('/api/music/lyrics', async (req, res) => {
+    const title = String(req.query.title || '').trim();
+    const artist = String(req.query.artist || '').trim();
+    const album = String(req.query.album || '').trim();
+    const durationSec = Number(req.query.duration || 0) || 0;
+
+    if (!title) {
+      res.status(400).json({ found: false, syncedLines: [], plainLyrics: '', error: 'Missing track title' });
+      return;
+    }
+
+    const result = await fetchLyricsFromLrclib({
+      title,
+      artist,
+      album,
+      durationSec,
+    });
+    res.json(result);
   });
 
   // Direct YouTube Music search & trending API endpoint
@@ -983,7 +1475,7 @@ self.addEventListener('activate', (event) => {
     }
   });
 
-  // Discover complete music catalog (Google Drive + YouTube Music + Online Full Streams)
+  // Discover complete music catalog (Google Drive + YouTube Music + Jamendo API)
   app.get('/api/music/discover', async (req, res) => {
     const genre = String(req.query.genre || 'all')
       .trim()
@@ -992,9 +1484,82 @@ self.addEventListener('activate', (event) => {
       req.query.folder || DEFAULT_DRIVE_FOLDER_ID
     ).trim();
     const refresh = req.query.refresh === '1';
+    const jamendoConfigured = Boolean(getJamendoClientId());
 
     try {
-      const driveResult = await getDriveFolderTracks(folderInput, refresh);
+      if (genre === 'radio') {
+        const stations = await fetchRadioBrowserStations('ID', 25);
+        res.json({
+          folderId: DEFAULT_DRIVE_FOLDER_ID,
+          totalDriveTracks: DRIVE_FOLDER_TRACKS.length,
+          totalYtMusicTracks: YOUTUBE_MUSIC_AND_ONLINE_TRACKS.length,
+          totalJamendoTracks: 0,
+          jamendoConfigured,
+          tracks: stations,
+          live: true,
+        });
+        return;
+      }
+
+      if (genre === 'audius') {
+        const audiusTracks = await fetchAudiusTracks('trending', 25);
+        for (const t of audiusTracks) {
+          ALL_INDEXED_MAP.set(t.id, t);
+        }
+        res.json({
+          folderId: DEFAULT_DRIVE_FOLDER_ID,
+          totalDriveTracks: DRIVE_FOLDER_TRACKS.length,
+          totalYtMusicTracks: YOUTUBE_MUSIC_AND_ONLINE_TRACKS.length,
+          totalJamendoTracks: 0,
+          jamendoConfigured,
+          tracks: audiusTracks,
+          live: true,
+        });
+        return;
+      }
+
+      if (genre === 'jamendo') {
+        const jamendoRes = await fetchJamendoTracks({
+          order: 'popularity_month',
+          limit: 30,
+        });
+        res.json({
+          folderId: DEFAULT_DRIVE_FOLDER_ID,
+          totalDriveTracks: DRIVE_FOLDER_TRACKS.length,
+          totalYtMusicTracks: YOUTUBE_MUSIC_AND_ONLINE_TRACKS.length,
+          totalJamendoTracks: jamendoRes.tracks.length,
+          jamendoConfigured: jamendoRes.configured,
+          jamendoError: jamendoRes.error,
+          tracks: jamendoRes.tracks,
+          live: jamendoRes.configured && !jamendoRes.error,
+        });
+        return;
+      }
+
+      const shouldFetchJamendoExtras =
+        jamendoConfigured &&
+        (genre === 'all' ||
+          genre === 'trending' ||
+          genre === 'pop' ||
+          genre === 'chill' ||
+          genre === 'lofi');
+
+      const [driveResult, jamendoExtraRes] = await Promise.all([
+        getDriveFolderTracks(folderInput, refresh),
+        shouldFetchJamendoExtras
+          ? fetchJamendoTracks({
+              tags:
+                genre === 'pop'
+                  ? 'pop'
+                  : genre === 'chill' || genre === 'lofi'
+                  ? 'chillout'
+                  : undefined,
+              order: 'popularity_month',
+              limit: 15,
+            })
+          : Promise.resolve({ configured: jamendoConfigured, tracks: [] as Track[] }),
+      ]);
+
       const filtered = filterCatalogByGenre(
         driveResult.tracks,
         YOUTUBE_MUSIC_AND_ONLINE_TRACKS,
@@ -1011,11 +1576,17 @@ self.addEventListener('activate', (event) => {
         onlineExtras = LOCAL_BUNDLED_TRACKS;
       }
 
-      const combined = dedupeTracks([...onlineExtras, ...filtered]);
+      const combined = dedupeTracks([
+        ...onlineExtras,
+        ...filtered,
+        ...jamendoExtraRes.tracks,
+      ]);
       res.json({
         folderId: driveResult.folderId,
         totalDriveTracks: driveResult.tracks.length,
         totalYtMusicTracks: YOUTUBE_MUSIC_AND_ONLINE_TRACKS.length,
+        totalJamendoTracks: jamendoExtraRes.tracks.length,
+        jamendoConfigured,
         tracks: combined,
         live: driveResult.live,
         driveError: driveResult.error,
@@ -1030,18 +1601,21 @@ self.addEventListener('activate', (event) => {
         folderId: DEFAULT_DRIVE_FOLDER_ID,
         totalDriveTracks: DRIVE_FOLDER_TRACKS.length,
         totalYtMusicTracks: YOUTUBE_MUSIC_AND_ONLINE_TRACKS.length,
-        tracks: fallback,
+        totalJamendoTracks: 0,
+        jamendoConfigured,
+        tracks: genre === 'jamendo' ? [] : fallback,
         live: true,
       });
     }
   });
 
-  // Search full-length tracks across Google Drive + YouTube Music API + Hearthis.at + Audius
+  // Search full-length tracks across Google Drive + YouTube Music API + Jamendo API + Hearthis.at + Audius
   app.get('/api/music/search', async (req, res) => {
     const q = String(req.query.q || '').trim();
     const folderInput = String(
       req.query.folder || DEFAULT_DRIVE_FOLDER_ID
     ).trim();
+    const jamendoConfigured = Boolean(getJamendoClientId());
 
     if (!q) {
       res.json({
@@ -1049,6 +1623,7 @@ self.addEventListener('activate', (event) => {
           ...DRIVE_FOLDER_TRACKS,
           ...YOUTUBE_MUSIC_AND_ONLINE_TRACKS,
         ]),
+        jamendoConfigured,
         live: true,
       });
       return;
@@ -1057,13 +1632,19 @@ self.addEventListener('activate', (event) => {
     const normalizedQ = q.toLowerCase();
 
     try {
-      const [driveResult, ytmLiveTracks, hearthisTracks, audiusTracks] =
-        await Promise.all([
-          getDriveFolderTracks(folderInput, false),
-          searchYouTubeMusicApi(q, 18),
-          searchHearthisTracks(q, 10),
-          fetchAudiusTracks(q, 10),
-        ]);
+      const [
+        driveResult,
+        ytmLiveTracks,
+        jamendoResult,
+        hearthisTracks,
+        audiusTracks,
+      ] = await Promise.all([
+        getDriveFolderTracks(folderInput, false),
+        searchYouTubeMusicApi(q, 18),
+        fetchJamendoTracks({ query: q, limit: 15 }),
+        searchHearthisTracks(q, 10),
+        fetchAudiusTracks(q, 10),
+      ]);
 
       const driveMatches = driveResult.tracks.filter(
         (t) =>
@@ -1089,6 +1670,7 @@ self.addEventListener('activate', (event) => {
       const combined = dedupeTracks([
         ...driveMatches,
         ...indexedYtmMatches,
+        ...jamendoResult.tracks,
         ...hearthisTracks,
         ...ytmLiveTracks,
         ...localMatches,
@@ -1099,6 +1681,8 @@ self.addEventListener('activate', (event) => {
         tracks: combined,
         driveMatchCount: driveMatches.length,
         ytMusicMatchCount: indexedYtmMatches.length + ytmLiveTracks.length,
+        jamendoMatchCount: jamendoResult.tracks.length,
+        jamendoConfigured,
         live: true,
       });
     } catch {
@@ -1108,7 +1692,7 @@ self.addEventListener('activate', (event) => {
           t.artist.toLowerCase().includes(normalizedQ) ||
           t.album.toLowerCase().includes(normalizedQ)
       );
-      res.json({ tracks: fallbackMatches, live: true });
+      res.json({ tracks: fallbackMatches, jamendoConfigured, live: true });
     }
   });
 
@@ -1140,6 +1724,8 @@ self.addEventListener('activate', (event) => {
         ? queryUrl
         : rawParam.startsWith('gdrive-')
         ? `https://drive.usercontent.google.com/download?id=${encodeURIComponent(rawParam.replace(/^gdrive-/, ''))}&export=download&confirm=t`
+        : rawParam.startsWith('jamendo-')
+        ? `https://prod-1.storage.jamendo.com/?trackid=${encodeURIComponent(rawParam.replace(/^jamendo-/, ''))}&format=mp32`
         : '';
 
     if (!targetUrl || !isSafeAudioProxyUrl(targetUrl)) {
@@ -1149,9 +1735,10 @@ self.addEventListener('activate', (event) => {
 
     const title = String(req.query.title || track?.title || 'Track');
     const artist = String(req.query.artist || track?.artist || 'ReyTune');
+    const isInfiniteStream = rawParam.startsWith('radio-') || track?.source === 'radio';
 
     try {
-      await pipeUpstreamAudio(targetUrl, req, res, isDownload, title, artist);
+      await pipeUpstreamAudio(targetUrl, req, res, isDownload, title, artist, isInfiniteStream);
     } catch {
       if (!res.headersSent) {
         res.status(502).json({ error: 'Audio stream failed' });
@@ -1175,8 +1762,10 @@ self.addEventListener('activate', (event) => {
       return;
     }
 
+    const isInfiniteStream = trackId.startsWith('radio-') || indexedTrack?.source === 'radio';
+
     try {
-      await pipeUpstreamAudio(rawUrl, req, res, isDownload, title, artist);
+      await pipeUpstreamAudio(rawUrl, req, res, isDownload, title, artist, isInfiniteStream);
     } catch {
       if (!res.headersSent) {
         res.status(502).json({ error: 'Audio stream proxy failed' });
@@ -1201,8 +1790,11 @@ self.addEventListener('activate', (event) => {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`ReyTune server listening on http://localhost:${PORT}`);
-    void prewarmInitialCatalog();
+    prewarmInitialCatalog().catch(() => undefined);
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('Failed to start ReyTune server:', err);
+  process.exit(1);
+});

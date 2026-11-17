@@ -9,7 +9,10 @@ export type LibraryTab = 'downloads' | 'playlists' | 'liked';
 export type TrackSource =
   | 'gdrive'
   | 'ytmusic'
+  | 'jamendo'
   | 'audius'
+  | 'radio'
+  | 'github'
   | 'deezer'
   | 'itunes'
   | 'local';

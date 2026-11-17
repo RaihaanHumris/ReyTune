@@ -22,6 +22,9 @@ const GENRE_FILTERS = [
   { id: 'all', label: 'Semua (320+)' },
   { id: 'ytmusic', label: 'YouTube Music' },
   { id: 'drive', label: 'Google Drive' },
+  { id: 'audius', label: 'Audius' },
+  { id: 'radio', label: 'Radio ID' },
+  { id: 'jamendo', label: 'Jamendo' },
   { id: 'trending', label: 'Trending' },
   { id: 'indonesia', label: 'Lagu Indo' },
   { id: 'pop', label: 'Pop Indo' },
@@ -59,6 +62,8 @@ interface ExploreViewProps {
   onImportLocalFiles?: (files: FileList) => void;
   onPrefetchTrack?: (track: Track) => void;
   iframeAuthBlocked?: boolean;
+  jamendoConfigured?: boolean;
+  jamendoError?: string | null;
 }
 
 export const ExploreView: React.FC<ExploreViewProps> = ({
@@ -90,6 +95,8 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
   onImportLocalFiles,
   onPrefetchTrack,
   iframeAuthBlocked = false,
+  jamendoConfigured = true,
+  jamendoError = null,
 }) => {
   const [showDriveInput, setShowDriveInput] = useState(false);
   const [customDriveInput, setCustomDriveInput] = useState(driveFolderUrl);
@@ -173,10 +180,10 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-[#F8FAFC] truncate">
-                  Google Drive + YouTube Music API Aktif
+                  Drive · YT Music · Audius · Radio · LRCLIB
                 </p>
                 <p className="text-[11px] text-[#94A3B8] truncate">
-                  168 Lagu Drive · 150+ YT Music &amp; Live Search
+                  168 Drive · Live Search · Lirik Sinkron{jamendoConfigured ? ' · Jamendo' : ''}
                 </p>
               </div>
             </div>
@@ -214,14 +221,14 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                 className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#1E293B] hover:bg-[#334155] text-[11px] font-medium text-[#F8FAFC] transition-colors"
               >
                 <Link2 size={12} />
-                <span>Link Drive</span>
+                <span>Drive / GitHub</span>
               </button>
               <button
                 type="button"
                 onClick={() => onSyncDriveFolder(driveFolderUrl)}
                 disabled={isLoadingApi}
-                aria-label="Sync Google Drive & YouTube Music"
-                title="Sinkronkan ulang lagu dari Google Drive & YouTube Music"
+                aria-label="Sync Google Drive & Music APIs"
+                title="Sinkronkan ulang lagu"
                 className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-[#10B981]/15 hover:bg-[#10B981]/25 text-[#10B981] transition-colors disabled:opacity-50"
               >
                 <RefreshCw
@@ -239,19 +246,19 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                   type="text"
                   value={customDriveInput}
                   onChange={(e) => setCustomDriveInput(e.target.value)}
-                  placeholder="Link folder / file Google Drive publik..."
-                  aria-label="Google Drive folder or file URL"
+                  placeholder="Link Drive (folder/file) atau Repo GitHub publik..."
+                  aria-label="Google Drive or GitHub repository URL"
                   className="flex-1 min-w-0 h-9 px-3 rounded-lg bg-[#0B0F17] border border-[#1E293B] text-xs text-[#F8FAFC] placeholder:text-[#94A3B8]/60 focus:outline-none focus:border-[#10B981]"
                 />
                 <button
                   type="submit"
                   className="h-9 px-3 rounded-lg bg-[#10B981] hover:bg-[#059669] text-[#0B0F17] text-xs font-semibold shrink-0"
                 >
-                  Muat Drive
+                  Muat Link
                 </button>
               </div>
               <p className="text-[10px] text-[#94A3B8]">
-                Mendukung link Folder atau 1 File MP3/M4A yang diset &quot;Siapa saja yang memiliki link&quot;.
+                Mendukung link Folder/File Google Drive publik atau link Repo GitHub (https://github.com/user/repo).
               </p>
             </form>
           )}
@@ -315,6 +322,14 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                   ? 'YouTube Music Trending'
                   : featuredTrack.source === 'gdrive'
                   ? 'Google Drive Full MP3'
+                  : featuredTrack.source === 'github'
+                  ? 'GitHub Repository Audio'
+                  : featuredTrack.source === 'audius'
+                  ? 'Audius Free MP3'
+                  : featuredTrack.source === 'radio'
+                  ? 'Radio Streaming Live ID'
+                  : featuredTrack.source === 'jamendo'
+                  ? 'Jamendo Free MP3'
                   : 'Featured Track'}
               </p>
               <h2 className="text-base font-bold text-[#F8FAFC] truncate mt-0.5">
@@ -358,15 +373,21 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                 ? 'Lagu Tersimpan Offline'
                 : isLoadingApi
                 ? searchQuery.trim()
-                  ? 'Mencari di YouTube Music & Drive...'
+                  ? 'Mencari di Drive, YT Music & Jamendo...'
                   : 'Memuat Koleksi Musik...'
                 : searchQuery
-                ? 'Hasil Pencarian (Drive + YouTube Music)'
+                ? 'Hasil Pencarian (Drive + YT Music + Jamendo)'
                 : activeGenre === 'ytmusic'
                 ? 'Koleksi YouTube Music & Online Hits'
                 : activeGenre === 'drive'
-                ? 'Koleksi Google Drive (Full MP3)'
-                : 'Koleksi Lengkap (Drive + YouTube Music)'}
+                ? 'Koleksi Google Drive / GitHub'
+                : activeGenre === 'audius'
+                ? 'Koleksi Audius Trending (Gratis)'
+                : activeGenre === 'radio'
+                ? 'Radio Streaming Indonesia (Live)'
+                : activeGenre === 'jamendo'
+                ? 'Koleksi Jamendo Music API'
+                : 'Koleksi Lengkap (Drive + YT Music + Online)'}
             </h2>
           </div>
 
@@ -426,6 +447,26 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                   className="inline-flex items-center justify-center h-10 px-4 rounded-xl bg-[#10B981] hover:bg-[#059669] text-[#0B0F17] text-xs font-semibold transition-colors"
                 >
                   Beralih ke Online
+                </button>
+              </>
+            ) : activeGenre === 'jamendo' && !searchQuery.trim() ? (
+              <>
+                <Radio size={28} className="mx-auto text-[#10B981]" />
+                <p className="text-sm font-medium text-[#F8FAFC]">
+                  {jamendoConfigured
+                    ? 'Belum ada lagu Jamendo yang termuat'
+                    : 'Jamendo API Membutuhkan JAMENDO_CLIENT_ID'}
+                </p>
+                <p className="text-xs text-[#94A3B8] max-w-xs mx-auto leading-relaxed">
+                  {jamendoError ||
+                    'Daftar gratis di devportal.jamendo.com untuk mendapatkan Client ID, lalu tambahkan ke Secrets dengan nama JAMENDO_CLIENT_ID.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={onRefreshFeed}
+                  className="inline-flex items-center justify-center h-10 px-4 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-[#F8FAFC] text-xs font-medium transition-colors"
+                >
+                  Muat Ulang Jamendo
                 </button>
               </>
             ) : (

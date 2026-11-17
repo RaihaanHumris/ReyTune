@@ -76,7 +76,9 @@ function getDirectAudioSrc(track: Track): string {
 
 function getProxyAudioSrc(track: Track): string {
   if (
-    (track.id.startsWith('gdrive-') || track.id.startsWith('ytm-')) &&
+    (track.id.startsWith('gdrive-') ||
+      track.id.startsWith('ytm-') ||
+      track.id.startsWith('jamendo-')) &&
     (track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://'))
   ) {
     return `/audio/tracks/${encodeURIComponent(track.id)}.mp3`;
@@ -92,9 +94,10 @@ function getProxyAudioSrc(track: Track): string {
 }
 
 function getPlayableAudioSrc(track: Track): string {
-  // Hearthis.at CDN streams support cross-site <audio> directly with HTTP 206 Partial Content
-  // and zero cookie requirements, bypassing any proxy restrictions.
+  // Continuous live radio streams and hearthis.at CDN streams play directly over HTTPS in <audio>
   if (
+    track.source === 'radio' ||
+    track.id.startsWith('radio-') ||
     track.audioUrl.includes('hearthis.at/') ||
     track.audioUrl.includes('hearthis.app/')
   ) {
@@ -135,6 +138,9 @@ function filterClientCatalogByGenre(genre: string): Track[] {
   }
   if (g === 'drive') {
     return DRIVE_FOLDER_TRACKS;
+  }
+  if (g === 'jamendo' || g === 'audius' || g === 'radio') {
+    return [];
   }
   if (g === 'trending') {
     const featuredDrive = DRIVE_FOLDER_TRACKS.filter(
@@ -209,6 +215,7 @@ export default function App() {
     typeof navigator !== 'undefined' ? !navigator.onLine : false
   );
   const [isFullPlayerOpen, setIsFullPlayerOpen] = useState(false);
+  const [fullPlayerTab, setFullPlayerTab] = useState<'player' | 'lyrics'>('player');
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [playlistPickerTrack, setPlaylistPickerTrack] = useState<Track | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -223,6 +230,8 @@ export default function App() {
   const [isLoadingApi, setIsLoadingApi] = useState(false);
   const [isLiveApi, setIsLiveApi] = useState(false);
   const [iframeAuthBlocked, setIframeAuthBlocked] = useState(false);
+  const [jamendoConfigured, setJamendoConfigured] = useState(true);
+  const [jamendoError, setJamendoError] = useState<string | null>(null);
 
   // Persisted user data
   const [downloadedIdList, setDownloadedIdList] = useState<string[]>(() =>
@@ -306,6 +315,13 @@ export default function App() {
       }
       return filterTracks(knownTracks, searchQuery);
     }
+    if (
+      activeGenre === 'jamendo' ||
+      activeGenre === 'audius' ||
+      activeGenre === 'radio'
+    ) {
+      return onlineFeedTracks;
+    }
     return onlineFeedTracks.length > 0
       ? onlineFeedTracks
       : filterClientCatalogByGenre(activeGenre);
@@ -379,17 +395,26 @@ export default function App() {
           totalDriveTracks?: number;
           live?: boolean;
           driveError?: string;
+          jamendoConfigured?: boolean;
+          jamendoError?: string;
         };
+        if (typeof data.jamendoConfigured === 'boolean') {
+          setJamendoConfigured(data.jamendoConfigured);
+        }
+        setJamendoError(data.jamendoError || null);
         if (forceRefresh && data.driveError) {
           showToast(data.driveError, 'warning');
         }
-        if (Array.isArray(data.tracks) && data.tracks.length > 0) {
+        if (genre === 'jamendo' || genre === 'audius' || genre === 'radio') {
+          setOnlineFeedTracks(Array.isArray(data.tracks) ? data.tracks : []);
+          setIsLiveApi(Boolean(data.live));
+        } else if (Array.isArray(data.tracks) && data.tracks.length > 0) {
           setOnlineFeedTracks(data.tracks);
           setIsLiveApi(Boolean(data.live));
           if (forceRefresh && !data.driveError) {
             const driveCount = data.totalDriveTracks ?? data.tracks.length;
             showToast(
-              `Disinkronkan ${driveCount} lagu dari link Google Drive`,
+              `Disinkronkan ${driveCount} lagu berhasil`,
               'success'
             );
           }
@@ -595,9 +620,15 @@ export default function App() {
       if (existingPromise) {
         return existingPromise;
       }
+      if (track.source === 'radio' || track.id.startsWith('radio-')) {
+        return null;
+      }
       if (
         !track.id.startsWith('gdrive-') &&
         !track.id.startsWith('ytm-') &&
+        !track.id.startsWith('jamendo-') &&
+        !track.id.startsWith('github-') &&
+        !track.id.startsWith('audius-') &&
         !track.audioUrl.startsWith('/audio/')
       ) {
         return null;
@@ -671,6 +702,28 @@ export default function App() {
         track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')
           ? `/api/stream-track.mp3?url=${encodeURIComponent(directUrl)}&id=${encodeURIComponent(track.id)}`
           : proxyUrl;
+
+      // Infinite live radio streams cannot be downloaded into an ArrayBuffer
+      if (track.source === 'radio' || track.id.startsWith('radio-')) {
+        try {
+          isSwitchingTrackRef.current = true;
+          configureAudioElementForSrc(audio, fallbackApiUrl);
+          audio.src = fallbackApiUrl;
+          await audio.play();
+          if (playRequestIdRef.current === reqId) {
+            audioUnlockedRef.current = true;
+            isSwitchingTrackRef.current = false;
+            setIsPlaying(true);
+          }
+        } catch {
+          if (playRequestIdRef.current === reqId) {
+            isSwitchingTrackRef.current = false;
+            setIsPlaying(false);
+            showToast(`Gagal memutar stasiun radio "${track.title}".`, 'warning');
+          }
+        }
+        return;
+      }
 
       try {
         // If this track is already prefetching (e.g. triggered on pointerdown), await that first
@@ -1808,6 +1861,8 @@ export default function App() {
                   onImportLocalFiles={(files) => void handleImportLocalFiles(files)}
                   onPrefetchTrack={(track) => void prefetchTrackAudio(track)}
                   iframeAuthBlocked={iframeAuthBlocked}
+                  jamendoConfigured={jamendoConfigured}
+                  jamendoError={jamendoError}
                 />
               </motion.div>
             )}
@@ -1927,7 +1982,14 @@ export default function App() {
             duration={duration}
             onTogglePlay={() => void handleTogglePlay()}
             onNext={() => void handleStepTrack('next')}
-            onExpand={() => setIsFullPlayerOpen(true)}
+            onExpand={() => {
+              setFullPlayerTab('player');
+              setIsFullPlayerOpen(true);
+            }}
+            onOpenLyrics={() => {
+              setFullPlayerTab('lyrics');
+              setIsFullPlayerOpen(true);
+            }}
           />
         )}
 
@@ -1937,6 +1999,7 @@ export default function App() {
         {/* Full-Screen Now Playing Drawer */}
         <FullScreenPlayer
           isOpen={isFullPlayerOpen}
+          initialTab={fullPlayerTab}
           track={currentTrack}
           isPlaying={isPlaying}
           currentTime={currentTime}

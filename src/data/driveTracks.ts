@@ -1,4 +1,4 @@
-import { Track } from "../types/music";
+import type { Track } from "../types/music.ts";
 
 export const DEFAULT_DRIVE_FOLDER_ID = "159K3zTj7LG7EWAn4oukJwRxClm8-1XhF";
 export const DEFAULT_DRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/159K3zTj7LG7EWAn4oukJwRxClm8-1XhF?usp=sharing";

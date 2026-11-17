@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pause, Play, SkipForward } from 'lucide-react';
+import { Mic2, Pause, Play, SkipForward } from 'lucide-react';
 import { Track } from '../types/music';
 import { CoverArtwork } from './CoverArtwork';
 
@@ -11,6 +11,7 @@ interface MiniPlayerProps {
   onTogglePlay: () => void;
   onNext: () => void;
   onExpand: () => void;
+  onOpenLyrics?: () => void;
 }
 
 export const MiniPlayer: React.FC<MiniPlayerProps> = ({
@@ -21,6 +22,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
   onTogglePlay,
   onNext,
   onExpand,
+  onOpenLyrics,
 }) => {
   const effectiveDuration = duration > 0 ? duration : track.durationSec;
   const progressPercent =
@@ -71,13 +73,25 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
             </div>
           </button>
 
-          {/* Playback Controls */}
+          {/* Playback & Lyrics Controls */}
           <div className="flex items-center shrink-0">
+            {onOpenLyrics && (
+              <button
+                type="button"
+                onClick={onOpenLyrics}
+                aria-label={`Buka lirik lagu ${track.title}`}
+                title="Lirik Lagu"
+                className="flex items-center justify-center min-h-[40px] min-w-[40px] rounded-full text-[#94A3B8] hover:text-[#10B981] hover:bg-[#0B0F17]/40 active:scale-95 transition-all focus-visible:outline-2 focus-visible:outline-[#10B981]"
+              >
+                <Mic2 size={17} strokeWidth={2} />
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onTogglePlay}
               aria-label={isPlaying ? `Pause ${track.title}` : `Play ${track.title}`}
-              className="flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full text-[#F8FAFC] hover:bg-[#0B0F17]/40 active:scale-95 transition-all focus-visible:outline-2 focus-visible:outline-[#10B981]"
+              className="flex items-center justify-center min-h-[42px] min-w-[42px] rounded-full text-[#F8FAFC] hover:bg-[#0B0F17]/40 active:scale-95 transition-all focus-visible:outline-2 focus-visible:outline-[#10B981]"
             >
               {isPlaying ? (
                 <Pause size={20} fill="currentColor" strokeWidth={1.75} />

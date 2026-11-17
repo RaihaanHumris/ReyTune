@@ -65,8 +65,14 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
       ? 'Drive MP3'
       : track.source === 'ytmusic'
       ? 'YT Music'
+      : track.source === 'jamendo'
+      ? 'Jamendo'
+      : track.source === 'radio'
+      ? 'Radio Live'
+      : track.source === 'github'
+      ? 'GitHub MP3'
       : track.source === 'audius'
-      ? 'Full MP3'
+      ? 'Audius'
       : track.isPreview
       ? 'Preview'
       : null;

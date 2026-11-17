@@ -1,4 +1,4 @@
-import { Track } from "../types/music";
+import type { Track } from "../types/music.ts";
 
 export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
   {
