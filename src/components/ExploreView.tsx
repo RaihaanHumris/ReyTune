@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
   ArrowDownToLine,
+  ExternalLink,
   FolderSync,
   Link2,
   Play,
@@ -56,6 +57,8 @@ interface ExploreViewProps {
   onAddToPlaylist: (track: Track) => void;
   onSwitchToOnline: () => void;
   onImportLocalFiles?: (files: FileList) => void;
+  onPrefetchTrack?: (track: Track) => void;
+  iframeAuthBlocked?: boolean;
 }
 
 export const ExploreView: React.FC<ExploreViewProps> = ({
@@ -85,6 +88,8 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
   onAddToPlaylist,
   onSwitchToOnline,
   onImportLocalFiles,
+  onPrefetchTrack,
+  iframeAuthBlocked = false,
 }) => {
   const [showDriveInput, setShowDriveInput] = useState(false);
   const [customDriveInput, setCustomDriveInput] = useState(driveFolderUrl);
@@ -135,6 +140,24 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
           </button>
         )}
       </div>
+
+      {/* Iframe Cookie Block Notice for Mobile Browsers */}
+      {!isOfflineMode && iframeAuthBlocked && typeof window !== 'undefined' && (
+        <div className="rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/30 px-3.5 py-2.5 flex items-center justify-between gap-2.5">
+          <p className="text-[11px] text-[#FDE68A] leading-snug">
+            Browser HP memblokir cookie pratinjau untuk streaming Drive. Buka di tab browser penuh agar semua lagu Drive lancar.
+          </p>
+          <a
+            href={window.location.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#F59E0B] text-[#0B0F17] text-[11px] font-semibold whitespace-nowrap shrink-0"
+          >
+            <ExternalLink size={12} />
+            <span>Buka Tab</span>
+          </a>
+        </div>
+      )}
 
       {/* Multi-Source API Status Bar: Google Drive + YouTube Music API */}
       {!isOfflineMode && (
@@ -303,6 +326,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
               <div className="flex items-center gap-2 mt-2.5">
                 <button
                   type="button"
+                  onPointerDown={() => onPrefetchTrack?.(featuredTrack)}
                   onClick={() => onPlayTrack(featuredTrack)}
                   className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-[#10B981] hover:bg-[#059669] active:scale-95 text-[#0B0F17] text-xs font-semibold transition-all whitespace-nowrap shrink-0"
                 >
@@ -439,6 +463,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                 onDeleteDownload={onDeleteDownload}
                 onToggleLike={onToggleLike}
                 onAddToPlaylist={onAddToPlaylist}
+                onPrefetch={onPrefetchTrack}
               />
             ))}
           </div>

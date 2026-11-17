@@ -30,6 +30,7 @@ interface TrackListItemProps {
   onDeleteDownload: (track: Track) => void;
   onToggleLike: (trackId: string) => void;
   onAddToPlaylist: (track: Track) => void;
+  onPrefetch?: (track: Track) => void;
 }
 
 export const TrackListItem: React.FC<TrackListItemProps> = ({
@@ -48,6 +49,7 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
   onDeleteDownload,
   onToggleLike,
   onAddToPlaylist,
+  onPrefetch,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -96,6 +98,7 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
       {/* Primary clickable track row */}
       <button
         type="button"
+        onPointerDown={() => onPrefetch?.(track)}
         onClick={() => onPlay(track)}
         aria-label={`Play ${track.title} by ${track.artist}`}
         className="flex flex-1 min-w-0 items-center gap-3 text-left py-0.5 active:scale-[0.99] transition-transform focus-visible:outline-2 focus-visible:outline-[#10B981] rounded-lg"

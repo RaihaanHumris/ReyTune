@@ -745,8 +745,14 @@ async function pipeUpstreamAudio(
     return;
   }
 
-  // Trigger background full-track warmup so subsequent Range probes (e.g. Safari 2-byte probe -> header probe -> play) are served in <1ms from RAM
-  void warmTrackBuffer(normalizedUrl);
+  const incomingRange =
+    typeof req.headers.range === 'string' ? req.headers.range.trim() : '';
+
+  // For partial Range probes, trigger a background warmup so subsequent probes/seeks hit RAM in <1ms.
+  // For full GET requests, stream once and populate RAM cache inline (zero duplicate fetch).
+  if (incomingRange || req.method === 'HEAD') {
+    void warmTrackBuffer(normalizedUrl);
+  }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
@@ -764,44 +770,16 @@ async function pipeUpstreamAudio(
         'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
     };
 
-    const incomingRange =
-      typeof req.headers.range === 'string' ? req.headers.range.trim() : '';
-
     if (incomingRange) {
       headers.Range = incomingRange;
     }
 
-    let upstream = await fetch(normalizedUrl, {
+    const upstream = await fetch(normalizedUrl, {
       method: req.method === 'HEAD' ? 'HEAD' : 'GET',
       headers,
       redirect: 'follow',
       signal: controller.signal,
     });
-
-    // If upstream fails (e.g. dead external link), fallback to a guaranteed full-length Drive MP3
-    if (!upstream.ok && upstream.status !== 206) {
-      const fallbackUrl = DRIVE_FOLDER_TRACKS[0]?.audioUrl;
-      if (fallbackUrl && fallbackUrl !== normalizedUrl) {
-        const fallbackCached = audioBufferCache.get(fallbackUrl);
-        if (fallbackCached) {
-          serveCachedAudioBuffer(
-            fallbackCached,
-            req,
-            res,
-            isDownload,
-            title,
-            artist
-          );
-          return;
-        }
-        upstream = await fetch(fallbackUrl, {
-          method: req.method === 'HEAD' ? 'HEAD' : 'GET',
-          headers,
-          redirect: 'follow',
-          signal: controller.signal,
-        });
-      }
-    }
 
     if (!upstream.ok && upstream.status !== 206) {
       res
@@ -810,9 +788,19 @@ async function pipeUpstreamAudio(
       return;
     }
 
-    const rawContentType = upstream.headers.get('content-type') || '';
+    const rawContentType = (upstream.headers.get('content-type') || '').toLowerCase();
+    if (rawContentType.includes('text/html')) {
+      res
+        .status(403)
+        .json({ error: 'Upstream returned HTML instead of audio stream' });
+      return;
+    }
+
     const contentType =
-      rawContentType.includes('audio/') || rawContentType.includes('mpeg')
+      rawContentType.includes('audio/') ||
+      rawContentType.includes('mpeg') ||
+      rawContentType.includes('mp4') ||
+      rawContentType.includes('ogg')
         ? rawContentType
         : 'audio/mpeg';
     const contentLength = upstream.headers.get('content-length');
@@ -842,9 +830,33 @@ async function pipeUpstreamAudio(
       return;
     }
 
+    const shouldCacheInline =
+      !incomingRange &&
+      req.method === 'GET' &&
+      (!contentLength || Number(contentLength) <= 22 * 1024 * 1024);
+    const cacheChunks: Buffer[] = [];
+    let cacheBytes = 0;
+
     const nodeStream = Readable.fromWeb(
       upstream.body as Parameters<typeof Readable.fromWeb>[0]
     );
+    if (shouldCacheInline) {
+      nodeStream.on('data', (chunk: Buffer) => {
+        if (cacheBytes + chunk.length <= 22 * 1024 * 1024) {
+          cacheChunks.push(chunk);
+          cacheBytes += chunk.length;
+        }
+      });
+      nodeStream.on('end', () => {
+        if (cacheBytes > 32768) {
+          storeAudioBufferInCache(
+            normalizedUrl,
+            Buffer.concat(cacheChunks),
+            contentType
+          );
+        }
+      });
+    }
     res.on('close', () => {
       if (!res.writableEnded) {
         nodeStream.destroy();
