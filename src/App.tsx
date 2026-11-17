@@ -9,7 +9,13 @@ import { MiniPlayer } from './components/MiniPlayer';
 import { PlaylistPickerModal } from './components/PlaylistPickerModal';
 import { PWAInstallModal } from './components/PWAInstallModal';
 import { SettingsView } from './components/SettingsView';
-import { CATALOG_TRACKS, DEFAULT_DRIVE_FOLDER_URL } from './data/tracks';
+import {
+  CATALOG_TRACKS,
+  DEFAULT_DRIVE_FOLDER_URL,
+  DRIVE_FOLDER_TRACKS,
+  LOCAL_BUNDLED_TRACKS,
+  YOUTUBE_MUSIC_AND_ONLINE_TRACKS,
+} from './data/tracks';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import {
   AudioQuality,
@@ -54,12 +60,19 @@ interface ToastState {
   tone: 'success' | 'info' | 'warning';
 }
 
-function getProxyAudioSrc(track: Track): string {
+function getDirectAudioSrc(track: Track): string {
   if (track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')) {
-    const normalized = track.audioUrl.replace(
+    return track.audioUrl.replace(
       /^https:\/\/hearthis\.app\//i,
       'https://hearthis.at/'
     );
+  }
+  return track.audioUrl;
+}
+
+function getProxyAudioSrc(track: Track): string {
+  if (track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')) {
+    const normalized = getDirectAudioSrc(track);
     return `/api/stream-track.mp3?url=${encodeURIComponent(normalized)}&id=${encodeURIComponent(track.id)}`;
   }
   if (track.audioUrl.startsWith('/api/music/ytm-audio')) {
@@ -69,7 +82,99 @@ function getProxyAudioSrc(track: Track): string {
 }
 
 function getPlayableAudioSrc(track: Track): string {
+  // Direct HTTPS URLs (drive.usercontent.google.com & hearthis.at) support browser CORS/streaming
+  // without hitting /api/* (which can be blocked by mobile iframe 3rd-party cookie restrictions)
+  if (track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')) {
+    return getDirectAudioSrc(track);
+  }
   return getProxyAudioSrc(track);
+}
+
+function configureAudioElementForSrc(audio: HTMLAudioElement, src: string): void {
+  if (
+    src.includes('drive.usercontent.google.com') ||
+    src.includes('drive.google.com')
+  ) {
+    // Google Drive sets Cross-Origin-Resource-Policy: same-site AND Access-Control-Allow-Origin: *.
+    // Setting crossOrigin = 'anonymous' switches <audio> from 'no-cors' (blocked by CORP)
+    // to 'cors' mode (allowed by Access-Control-Allow-Origin: * with zero cookies required).
+    audio.crossOrigin = 'anonymous';
+  } else {
+    audio.removeAttribute('crossorigin');
+  }
+}
+
+function filterClientCatalogByGenre(genre: string): Track[] {
+  const g = genre.trim().toLowerCase();
+  if (!g || g === 'all') {
+    return CATALOG_TRACKS;
+  }
+  if (g === 'ytmusic') {
+    return YOUTUBE_MUSIC_AND_ONLINE_TRACKS;
+  }
+  if (g === 'drive') {
+    return DRIVE_FOLDER_TRACKS;
+  }
+  if (g === 'trending') {
+    const featuredDrive = DRIVE_FOLDER_TRACKS.filter(
+      (t) =>
+        t.featured ||
+        /Tulus|Raim Laode|Nadhif|Juicy Luicy|Sal Priadi|Idgitaf|Judika|ROSÉ|Bruno Mars|The 1975|Rex Orange County|Hindia|Pamungkas/i.test(
+          t.artist
+        )
+    );
+    return [
+      ...featuredDrive.slice(0, 15),
+      ...YOUTUBE_MUSIC_AND_ONLINE_TRACKS.slice(0, 25),
+      ...featuredDrive.slice(15),
+    ];
+  }
+  if (g === 'indonesia') {
+    const indoDrive = DRIVE_FOLDER_TRACKS.filter(
+      (t) =>
+        t.genre.toLowerCase().includes('indo') ||
+        /Tulus|Raim Laode|Nadhif|Juicy Luicy|Sal Priadi|Idgitaf|Judika|Armada|Fiersa|NOAH|Lyla|Bagindas|Ungu|Denny Caknan|Hindia|Pamungkas|Misellia|Keisya|Mahen|Rony Parulian|Samuel Cipta|Anggis Devaki|ILIR7|Hal|HAL|Amigdala|Samsons|Repvblik|Yovie|Tipe-X|Ebiet|Anji|Rizky Febian|Aldy Maldini|Kaleb|Mario G|Angga Candra|Piche Kota|Overnight|eńau|eńau/i.test(
+          t.artist
+        )
+    );
+    return [...indoDrive, ...YOUTUBE_MUSIC_AND_ONLINE_TRACKS];
+  }
+  if (g === 'pop') {
+    const popDrive = DRIVE_FOLDER_TRACKS.filter(
+      (t) =>
+        t.genre === 'Pop Indo' ||
+        /Tulus|Juicy Luicy|Nadhif|Mahalini|Judika|Sal Priadi|Idgitaf|Rizky Febian|Keisya|Mahen|Rony Parulian|Armada|NOAH|Samsons|Repvblik|Yovie|Kaleb|Anggis Devaki|Misellia/i.test(
+          t.artist
+        )
+    );
+    return [...YOUTUBE_MUSIC_AND_ONLINE_TRACKS.slice(0, 30), ...popDrive];
+  }
+  if (g === 'barat') {
+    return DRIVE_FOLDER_TRACKS.filter((t) => t.genre === 'Barat Hits');
+  }
+  if (g === 'viral') {
+    const viralDrive = DRIVE_FOLDER_TRACKS.filter(
+      (t) =>
+        t.genre === 'Viral TikTok' ||
+        /APT|Sesi Potret|Sailor Song|Kita Lewati Berdua|Jatuh Suka|Sedia Aku Sebelum Hujan|Kota Ini Tak Sama|Negoro Angin|The One That Got Away|Gata Only|Love Nwantiti|Somebody's Pleasure|Mary On A Cross|Angel Baby|Copines|Paro|Dandelions|People/i.test(
+          t.title
+        )
+    );
+    return [...viralDrive, ...YOUTUBE_MUSIC_AND_ONLINE_TRACKS.slice(0, 20)];
+  }
+  if (g === 'chill' || g === 'lofi') {
+    return [
+      ...LOCAL_BUNDLED_TRACKS,
+      ...CATALOG_TRACKS.filter(
+        (t) =>
+          t.genre === 'Chill' ||
+          /Raim Laode|Nadhif|Tulus|Fiersa|Sal Priadi|Amigdala|Pamungkas|Rex Orange County|Lana Del Rey|Radiohead|yaeow|Kina|Payung Teduh|Fourtwnty|Nadin Amizah|Feby Putri|Hindia|Kunto Aji|Barasuara|Mocca|Hal|HAL/i.test(
+            t.artist
+          )
+      ),
+    ];
+  }
+  return CATALOG_TRACKS;
 }
 
 export default function App() {
@@ -177,8 +282,11 @@ export default function App() {
       }
       return filterTracks(knownTracks, searchQuery);
     }
-    return onlineFeedTracks.length > 0 ? onlineFeedTracks : CATALOG_TRACKS;
+    return onlineFeedTracks.length > 0
+      ? onlineFeedTracks
+      : filterClientCatalogByGenre(activeGenre);
   }, [
+    activeGenre,
     downloadedIds,
     isOfflineMode,
     knownTracks,
@@ -374,7 +482,7 @@ export default function App() {
     return getPlayableAudioSrc(track);
   }, []);
 
-  // Fallback recovery using authenticated window.fetch -> Blob URL when mobile cross-origin iframes block <audio> cookies
+  // Fallback recovery using CORS fetch -> Blob URL (tries direct Google Drive / Hearthis CDN first, then backend proxy)
   const recoverPlaybackViaFetch = useCallback(
     async (track: Track, reqId: number) => {
       const audio = audioRef.current;
@@ -383,17 +491,47 @@ export default function App() {
       if (activeRecoveryReqIdRef.current === reqId) return;
       activeRecoveryReqIdRef.current = reqId;
 
+      const directUrl = getDirectAudioSrc(track);
       const proxyUrl = getProxyAudioSrc(track);
 
       try {
-        // Fetch fast 512KB starter chunk (~1.3s) so mobile user-gesture activation (<5s) never expires
-        let res = await fetch(proxyUrl, {
-          credentials: 'include',
-          headers: { Range: 'bytes=0-524287' },
-        });
-        if (!res.ok && res.status !== 206) {
-          res = await fetch(proxyUrl, { credentials: 'include' });
+        let res: Response | null = null;
+        let usedSourceUrl = directUrl;
+
+        // 1. First try direct CORS fetch to Google Drive / Hearthis CDN (completely bypasses /api/* iframe cookie restrictions)
+        if (directUrl.startsWith('https://')) {
+          try {
+            const isDrive =
+              directUrl.includes('drive.usercontent.google.com') ||
+              directUrl.includes('drive.google.com');
+            res = await fetch(directUrl, {
+              mode: 'cors',
+              credentials: 'omit',
+              headers: isDrive ? { Range: 'bytes=0-524287' } : undefined,
+            });
+            if (!res.ok && res.status !== 206 && isDrive) {
+              res = await fetch(directUrl, {
+                mode: 'cors',
+                credentials: 'omit',
+              });
+            }
+          } catch {
+            res = null;
+          }
         }
+
+        // 2. Fallback to backend proxy (/api/stream-track.mp3) if direct CORS fetch was not applicable or failed
+        if (!res || (!res.ok && res.status !== 206)) {
+          usedSourceUrl = proxyUrl;
+          res = await fetch(proxyUrl, {
+            credentials: 'include',
+            headers: { Range: 'bytes=0-524287' },
+          });
+          if (!res.ok && res.status !== 206) {
+            res = await fetch(proxyUrl, { credentials: 'include' });
+          }
+        }
+
         if (!res.ok && res.status !== 206) {
           throw new Error(`HTTP ${res.status}`);
         }
@@ -423,6 +561,7 @@ export default function App() {
         isSwitchingTrackRef.current = true;
         audio.muted = false;
         audio.volume = 1;
+        configureAudioElementForSrc(audio, blobUrl);
         audio.src = blobUrl;
 
         try {
@@ -445,7 +584,13 @@ export default function App() {
 
         // If initial response was a 206 starter chunk, fetch the complete full-length MP3 in background
         if (isPartial && !offlineBlobUrlsRef.current[track.id]) {
-          void fetch(proxyUrl, { credentials: 'include' })
+          const isDirectHttps = usedSourceUrl.startsWith('https://');
+          void fetch(
+            usedSourceUrl,
+            isDirectHttps
+              ? { mode: 'cors', credentials: 'omit' }
+              : { credentials: 'include' }
+          )
             .then((fullRes) => (fullRes.ok ? fullRes.arrayBuffer() : null))
             .then((fullBuf) => {
               if (fullBuf && fullBuf.byteLength > buf.byteLength) {
@@ -482,6 +627,7 @@ export default function App() {
       isSwitchingTrackRef.current = true;
       audio.muted = false;
       audio.volume = 1;
+      configureAudioElementForSrc(audio, targetSrc);
       audio.src = targetSrc;
       audio.load();
       setIsPlaying(true);
@@ -500,7 +646,7 @@ export default function App() {
             const errName = err instanceof Error ? err.name : '';
             // Ignore AbortError caused by rapid track switching or stream buffering handoff
             if (errName === 'AbortError') return;
-            // If direct/proxy <audio> failed on mobile (e.g. iframe cookie block), recover via window.fetch -> Blob
+            // If direct <audio> failed, recover via CORS fetch -> Blob
             void recoverPlaybackViaFetch(track, reqId);
           });
       } else {
@@ -522,7 +668,9 @@ export default function App() {
         if (audioRef.current) {
           isSwitchingTrackRef.current = false;
           audioRef.current.pause();
-          audioRef.current.src = getAudioSourceSync(firstOffline);
+          const offlineSrc = getAudioSourceSync(firstOffline);
+          configureAudioElementForSrc(audioRef.current, offlineSrc);
+          audioRef.current.src = offlineSrc;
         }
         setIsPlaying(false);
         showToast(`Switched to offline track: ${firstOffline.title}`, 'info');
@@ -748,6 +896,7 @@ export default function App() {
           audio.src !== offlineBlobUrlsRef.current[currentTrack.id]
         ) {
           isSwitchingTrackRef.current = true;
+          configureAudioElementForSrc(audio, offlineBlobUrlsRef.current[currentTrack.id]);
           audio.src = offlineBlobUrlsRef.current[currentTrack.id];
           audio.currentTime = clampedTime;
           void audio.play().finally(() => {
@@ -840,6 +989,7 @@ export default function App() {
       ) {
         const resumeFrom = audio.currentTime;
         isSwitchingTrackRef.current = true;
+        configureAudioElementForSrc(audio, offlineBlobUrlsRef.current[currentTrack.id]);
         audio.src = offlineBlobUrlsRef.current[currentTrack.id];
         audio.currentTime = resumeFrom;
         void audio.play().finally(() => {
@@ -1018,8 +1168,22 @@ export default function App() {
       setDownloadProgressMap((prev) => ({ ...prev, [track.id]: 5 }));
 
       try {
-        const fetchUrl = getPlayableAudioSrc(track);
-        const res = await fetch(fetchUrl);
+        const directUrl = getDirectAudioSrc(track);
+        const proxyUrl = getProxyAudioSrc(track);
+        let fetchUrl = directUrl;
+        let res: Response | null = null;
+
+        if (directUrl.startsWith('https://')) {
+          try {
+            res = await fetch(directUrl, { mode: 'cors', credentials: 'omit' });
+          } catch {
+            res = null;
+          }
+        }
+        if (!res || !res.ok) {
+          fetchUrl = proxyUrl;
+          res = await fetch(proxyUrl);
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const contentLength = Number(res.headers.get('content-length') || '0');
@@ -1106,7 +1270,9 @@ export default function App() {
         }
 
         const downloadUrl =
-          track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')
+          track.audioUrl.includes('drive.usercontent.google.com')
+            ? track.audioUrl
+            : track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')
             ? `/api/stream-track.mp3?url=${encodeURIComponent(track.audioUrl)}&download=1&title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`
             : track.audioUrl.startsWith('/api/music/ytm-audio')
             ? `${track.audioUrl.replace('/api/music/ytm-audio', '/api/ytm-track.mp3')}&download=1`
