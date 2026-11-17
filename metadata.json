@@ -1,0 +1,8 @@
+{
+  "name": "Remix OfflineTune",
+  "description": "Dark-mode native, mobile-first offline music player and downloader PWA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
