@@ -487,23 +487,45 @@ async function pipeUpstreamAudio(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-  const onClientClose = () => {
+  const onResponseClose = () => {
     if (!res.writableEnded) {
       controller.abort();
     }
   };
-  req.on('close', onClientClose);
+  res.on('close', onResponseClose);
 
   try {
+    const normalizedUrl = rawUrl.replace(
+      /^https:\/\/hearthis\.app\//i,
+      'https://hearthis.at/'
+    );
+
     const headers: Record<string, string> = {
       'User-Agent':
-        'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
     };
-    if (typeof req.headers.range === 'string') {
-      headers.Range = req.headers.range;
+
+    const incomingRange =
+      typeof req.headers.range === 'string' ? req.headers.range.trim() : '';
+
+    if (incomingRange) {
+      const openRangeMatch =
+        !isDownload && /^bytes=(\d+)-$/i.exec(incomingRange);
+      const isDriveSource =
+        normalizedUrl.includes('drive.usercontent.google.com') ||
+        normalizedUrl.includes('drive.google.com');
+      if (openRangeMatch && isDriveSource) {
+        // Cap open-ended Range requests to 1.5MB chunks so Cloud Run reverse proxy
+        // flushes the first audio chunk in ~0.3s instead of buffering a 10MB file
+        const startByte = Number(openRangeMatch[1]);
+        const endByte = startByte + 1572863;
+        headers.Range = `bytes=${startByte}-${endByte}`;
+      } else {
+        headers.Range = incomingRange;
+      }
     }
 
-    let upstream = await fetch(rawUrl, {
+    let upstream = await fetch(normalizedUrl, {
       method: req.method === 'HEAD' ? 'HEAD' : 'GET',
       headers,
       redirect: 'follow',
@@ -513,7 +535,7 @@ async function pipeUpstreamAudio(
     // If upstream fails (e.g. dead external link), fallback to a guaranteed full-length Drive MP3
     if (!upstream.ok && upstream.status !== 206) {
       const fallbackUrl = DRIVE_FOLDER_TRACKS[0]?.audioUrl;
-      if (fallbackUrl && fallbackUrl !== rawUrl) {
+      if (fallbackUrl && fallbackUrl !== normalizedUrl) {
         upstream = await fetch(fallbackUrl, {
           method: req.method === 'HEAD' ? 'HEAD' : 'GET',
           headers,
@@ -564,8 +586,10 @@ async function pipeUpstreamAudio(
     const nodeStream = Readable.fromWeb(
       upstream.body as Parameters<typeof Readable.fromWeb>[0]
     );
-    req.on('close', () => {
-      nodeStream.destroy();
+    res.on('close', () => {
+      if (!res.writableEnded) {
+        nodeStream.destroy();
+      }
     });
     nodeStream.on('error', () => {
       if (!res.headersSent) res.status(502).end();
@@ -574,7 +598,7 @@ async function pipeUpstreamAudio(
     nodeStream.pipe(res);
   } finally {
     clearTimeout(timeoutId);
-    req.off('close', onClientClose);
+    res.off('close', onResponseClose);
   }
 }
 

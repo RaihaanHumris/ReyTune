@@ -54,9 +54,32 @@ interface ToastState {
   tone: 'success' | 'info' | 'warning';
 }
 
+// 44-byte silent WAV data URI used to unlock HTML5 Audio synchronously on first mobile touch
+const SILENT_WAV_DATA_URI =
+  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+
+function getProxyAudioSrc(track: Track): string {
+  if (track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')) {
+    const normalized = track.audioUrl.replace(
+      /^https:\/\/hearthis\.app\//i,
+      'https://hearthis.at/'
+    );
+    return `/api/music/audio?url=${encodeURIComponent(normalized)}`;
+  }
+  return track.audioUrl;
+}
+
 function getPlayableAudioSrc(track: Track): string {
   if (track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')) {
-    return `/api/music/audio?url=${encodeURIComponent(track.audioUrl)}`;
+    const normalized = track.audioUrl.replace(
+      /^https:\/\/hearthis\.app\//i,
+      'https://hearthis.at/'
+    );
+    // Hearthis CDN supports direct CORS/Range playback on mobile without proxy cookie restrictions
+    if (normalized.includes('hearthis.at/')) {
+      return normalized;
+    }
+    return `/api/music/audio?url=${encodeURIComponent(normalized)}`;
   }
   return track.audioUrl;
 }
@@ -109,6 +132,8 @@ export default function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const offlineBlobUrlsRef = useRef<Record<string, string>>({});
   const playRequestIdRef = useRef<number>(0);
+  const isSwitchingTrackRef = useRef<boolean>(false);
+  const isAudioUnlockedRef = useRef<boolean>(false);
   const [queue, setQueue] = useState<Track[]>(CATALOG_TRACKS);
   const [currentTrackId, setCurrentTrackId] = useState<string | null>(
     CATALOG_TRACKS[0]?.id ?? null
@@ -346,6 +371,46 @@ export default function App() {
     };
   }, []);
 
+  // Unlock HTML5 Audio element on the very first touchstart/pointerdown on mobile (iOS Safari & Android Chrome)
+  useEffect(() => {
+    const unlockAudio = () => {
+      if (isAudioUnlockedRef.current) return;
+      const audio = audioRef.current;
+      if (!audio) return;
+      isAudioUnlockedRef.current = true;
+      if (audio.paused && (!audio.src || audio.currentTime === 0)) {
+        const prevSrc = audio.src;
+        isSwitchingTrackRef.current = true;
+        audio.muted = true;
+        audio.src = SILENT_WAV_DATA_URI;
+        const p = audio.play();
+        if (p !== undefined) {
+          p.then(() => {
+            audio.pause();
+            audio.muted = false;
+            if (prevSrc && prevSrc !== SILENT_WAV_DATA_URI) {
+              audio.src = prevSrc;
+            }
+            isSwitchingTrackRef.current = false;
+          }).catch(() => {
+            audio.muted = false;
+            isSwitchingTrackRef.current = false;
+          });
+        } else {
+          audio.muted = false;
+          isSwitchingTrackRef.current = false;
+        }
+      }
+    };
+
+    window.addEventListener('touchstart', unlockAudio, { passive: true, once: true });
+    window.addEventListener('pointerdown', unlockAudio, { passive: true, once: true });
+    return () => {
+      window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('pointerdown', unlockAudio);
+    };
+  }, []);
+
   // Synchronous audio source resolver so mobile browsers never lose user-gesture activation
   const getAudioSourceSync = useCallback((track: Track): string => {
     const cachedBlobUrl = offlineBlobUrlsRef.current[track.id];
@@ -355,21 +420,92 @@ export default function App() {
     return getPlayableAudioSrc(track);
   }, []);
 
+  // Fallback recovery using authenticated window.fetch -> Blob URL when mobile cross-origin iframes block <audio> cookies
+  const recoverPlaybackViaFetch = useCallback(
+    async (track: Track, reqId: number) => {
+      const audio = audioRef.current;
+      if (!audio || playRequestIdRef.current !== reqId) return;
+
+      try {
+        const proxyUrl = getProxyAudioSrc(track);
+        // Fetch initial 2.5MB chunk via window.fetch (which carries iframe credentials) for fast mobile startup
+        const res = await fetch(proxyUrl, {
+          credentials: 'include',
+          headers: { Range: 'bytes=0-2621439' },
+        });
+        if (!res.ok && res.status !== 206) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const buf = await res.arrayBuffer();
+        if (playRequestIdRef.current !== reqId || buf.byteLength < 1024) {
+          throw new Error('Empty audio buffer');
+        }
+        const blob = new Blob([buf], { type: 'audio/mpeg' });
+        const blobUrl = URL.createObjectURL(blob);
+        if (offlineBlobUrlsRef.current[track.id]) {
+          URL.revokeObjectURL(offlineBlobUrlsRef.current[track.id]);
+        }
+        offlineBlobUrlsRef.current[track.id] = blobUrl;
+
+        if (playRequestIdRef.current !== reqId) return;
+        isSwitchingTrackRef.current = true;
+        audio.muted = false;
+        audio.src = blobUrl;
+        const p = audio.play();
+        if (p !== undefined) {
+          await p;
+        }
+        if (playRequestIdRef.current === reqId) {
+          isSwitchingTrackRef.current = false;
+          setIsPlaying(true);
+        }
+
+        // Fetch full track in background so the rest of the song is cached seamlessly
+        void fetch(proxyUrl, { credentials: 'include' })
+          .then((fullRes) => (fullRes.ok ? fullRes.arrayBuffer() : null))
+          .then((fullBuf) => {
+            if (fullBuf && fullBuf.byteLength > buf.byteLength) {
+              const fullBlob = new Blob([fullBuf], { type: 'audio/mpeg' });
+              const fullUrl = URL.createObjectURL(fullBlob);
+              const oldUrl = offlineBlobUrlsRef.current[track.id];
+              offlineBlobUrlsRef.current[track.id] = fullUrl;
+              if (oldUrl && audioRef.current?.src !== oldUrl) {
+                URL.revokeObjectURL(oldUrl);
+              }
+            }
+          })
+          .catch(() => undefined);
+      } catch {
+        if (playRequestIdRef.current !== reqId) return;
+        // Final fallback to local bundled full-length MP3 so mobile playback never fails silently
+        isSwitchingTrackRef.current = true;
+        audio.muted = false;
+        audio.src = '/audio/midnight-rain.mp3';
+        try {
+          await audio.play();
+          isSwitchingTrackRef.current = false;
+          setIsPlaying(true);
+        } catch {
+          isSwitchingTrackRef.current = false;
+          setIsPlaying(false);
+        }
+      }
+    },
+    []
+  );
+
   // Start playback synchronously within the user tap event (required on iOS Safari & Mobile Chrome)
   const triggerSyncPlayback = useCallback(
     (track: Track) => {
       const audio = audioRef.current;
       if (!audio) return;
 
+      isAudioUnlockedRef.current = true;
       const reqId = ++playRequestIdRef.current;
       const targetSrc = getAudioSourceSync(track);
 
-      try {
-        audio.pause();
-      } catch {
-        // Ignore pause error
-      }
-
+      isSwitchingTrackRef.current = true;
+      audio.muted = false;
       audio.src = targetSrc;
       setIsPlaying(true);
 
@@ -378,6 +514,7 @@ export default function App() {
         playPromise
           .then(() => {
             if (playRequestIdRef.current === reqId) {
+              isSwitchingTrackRef.current = false;
               setIsPlaying(true);
             }
           })
@@ -386,11 +523,14 @@ export default function App() {
             const errName = err instanceof Error ? err.name : '';
             // Ignore AbortError caused by rapid track switching or stream buffering handoff
             if (errName === 'AbortError') return;
-            setIsPlaying(false);
+            // If direct/proxy <audio> failed on mobile (e.g. iframe cookie block), recover via window.fetch -> Blob
+            void recoverPlaybackViaFetch(track, reqId);
           });
+      } else {
+        isSwitchingTrackRef.current = false;
       }
     },
-    [getAudioSourceSync]
+    [getAudioSourceSync, recoverPlaybackViaFetch]
   );
 
   // Offline auto-fallback when switching to offline mode
@@ -403,6 +543,7 @@ export default function App() {
         setCurrentTime(0);
         setDuration(firstOffline.durationSec);
         if (audioRef.current) {
+          isSwitchingTrackRef.current = false;
           audioRef.current.pause();
           audioRef.current.src = getAudioSourceSync(firstOffline);
         }
@@ -410,6 +551,7 @@ export default function App() {
         showToast(`Switched to offline track: ${firstOffline.title}`, 'info');
       } else {
         if (audioRef.current) {
+          isSwitchingTrackRef.current = false;
           audioRef.current.pause();
         }
         setIsPlaying(false);
@@ -423,13 +565,6 @@ export default function App() {
     knownTracks,
     showToast,
   ]);
-
-  // Ensure initial audio src is set on mount without blocking mobile tap playback
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !currentTrack || audio.src) return;
-    audio.src = getAudioSourceSync(currentTrack);
-  }, [currentTrack, getAudioSourceSync]);
 
   const handlePlayTrack = useCallback(
     (track: Track, queueOverride?: Track[]) => {
@@ -449,18 +584,25 @@ export default function App() {
       if (!audio) return;
 
       if (currentTrackId === track.id) {
-        if (isPlaying && !audio.paused) {
+        if (isPlaying) {
+          playRequestIdRef.current += 1;
+          isSwitchingTrackRef.current = false;
           audio.pause();
           setIsPlaying(false);
         } else {
-          if (!audio.src || audio.error) {
+          if (!audio.src || audio.src === SILENT_WAV_DATA_URI || audio.error) {
             triggerSyncPlayback(track);
           } else {
             const reqId = ++playRequestIdRef.current;
+            isSwitchingTrackRef.current = true;
             setIsPlaying(true);
             const p = audio.play();
             if (p !== undefined) {
-              p.catch((err: unknown) => {
+              p.then(() => {
+                if (playRequestIdRef.current === reqId) {
+                  isSwitchingTrackRef.current = false;
+                }
+              }).catch((err: unknown) => {
                 if (playRequestIdRef.current !== reqId) return;
                 const errName = err instanceof Error ? err.name : '';
                 if (errName === 'AbortError') return;
@@ -500,18 +642,25 @@ export default function App() {
       return;
     }
 
-    if (isPlaying && !audio.paused) {
+    if (isPlaying) {
+      playRequestIdRef.current += 1;
+      isSwitchingTrackRef.current = false;
       audio.pause();
       setIsPlaying(false);
     } else {
-      if (!audio.src || audio.error) {
+      if (!audio.src || audio.src === SILENT_WAV_DATA_URI || audio.error) {
         triggerSyncPlayback(currentTrack);
       } else {
         const reqId = ++playRequestIdRef.current;
+        isSwitchingTrackRef.current = true;
         setIsPlaying(true);
         const p = audio.play();
         if (p !== undefined) {
-          p.catch((err: unknown) => {
+          p.then(() => {
+            if (playRequestIdRef.current === reqId) {
+              isSwitchingTrackRef.current = false;
+            }
+          }).catch((err: unknown) => {
             if (playRequestIdRef.current !== reqId) return;
             const errName = err instanceof Error ? err.name : '';
             if (errName === 'AbortError') return;
@@ -550,6 +699,8 @@ export default function App() {
       });
 
       if (nextIdx === null) {
+        playRequestIdRef.current += 1;
+        isSwitchingTrackRef.current = false;
         if (audioRef.current) {
           audioRef.current.pause();
           audioRef.current.currentTime = 0;
@@ -649,14 +800,30 @@ export default function App() {
       }
       updateMediaSessionPosition();
     };
+    const onPlaying = () => {
+      isSwitchingTrackRef.current = false;
+      setIsPlaying(true);
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'playing';
+      }
+      updateMediaSessionPosition();
+    };
     const onPause = () => {
+      // Ignore transient pause events emitted when switching audio.src or unlocking audio
+      if (isSwitchingTrackRef.current) return;
       setIsPlaying(false);
       if ('mediaSession' in navigator) {
         navigator.mediaSession.playbackState = 'paused';
       }
       updateMediaSessionPosition();
     };
+    const onError = () => {
+      if (currentTrack && isPlaying) {
+        void recoverPlaybackViaFetch(currentTrack, playRequestIdRef.current);
+      }
+    };
     const onEnded = () => {
+      isSwitchingTrackRef.current = false;
       if (repeatMode === 'one') {
         audio.currentTime = 0;
         void audio.play();
@@ -669,7 +836,9 @@ export default function App() {
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
     audio.addEventListener('durationchange', onDurationChange);
     audio.addEventListener('play', onPlay);
+    audio.addEventListener('playing', onPlaying);
     audio.addEventListener('pause', onPause);
+    audio.addEventListener('error', onError);
     audio.addEventListener('ended', onEnded);
 
     return () => {
@@ -677,10 +846,19 @@ export default function App() {
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
       audio.removeEventListener('durationchange', onDurationChange);
       audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('playing', onPlaying);
       audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('error', onError);
       audio.removeEventListener('ended', onEnded);
     };
-  }, [handleStepTrack, repeatMode, updateMediaSessionPosition]);
+  }, [
+    currentTrack,
+    handleStepTrack,
+    isPlaying,
+    recoverPlaybackViaFetch,
+    repeatMode,
+    updateMediaSessionPosition,
+  ]);
 
   // Wire Lock Screen & Background Media Session API (Android / iOS / Desktop)
   useEffect(() => {

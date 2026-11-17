@@ -10,7 +10,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 254,
     "fileSizeMb": 6,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/97/c3/9d/97c39dca-4f94-08c5-ad93-519ea290f12a/886447559512.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/afgan-isyana-sarasvati-rendy-pandugo-feel-so-right/listen/?s=LJF",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/afgan-isyana-sarasvati-rendy-pandugo-feel-so-right/listen/?s=LJF",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -23,7 +23,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 215,
     "fileSizeMb": 5,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/cb/e7/cf/cbe7cf90-f5d8-9678-979f-09ffd3580595/886446864433.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/ardhito-pramono-bila-ost-susah-sinyal/listen/?s=abe",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/ardhito-pramono-bila-ost-susah-sinyal/listen/?s=abe",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -36,7 +36,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 250,
     "fileSizeMb": 5.9,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/66/1b/2c/661b2c9b-b292-6e13-dd29-cd4c208abca1/190295119485.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/armada-i-will/listen/?s=Qtc",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/armada-i-will/listen/?s=Qtc",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -49,7 +49,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 242,
     "fileSizeMb": 5.7,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music117/v4/35/8b/66/358b66f4-5a2c-9c61-84ec-41cd8fe7fa25/dj.oyhtiwot.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/bunga-citra-lestari-jera-hatiku-masih-milikmu/listen/?s=wa5",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/bunga-citra-lestari-jera-hatiku-masih-milikmu/listen/?s=wa5",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -62,7 +62,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 226,
     "fileSizeMb": 5.3,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music118/v4/c8/00/b6/c800b6c7-a7a3-93d4-17c1-fa72a9ae260e/BCL_KARENA_KITA_BERSAMA6_COVER.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/bunga-citra-lestari-karena-kita-bersama-keluarga-cemara/listen/?s=gKL",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/bunga-citra-lestari-karena-kita-bersama-keluarga-cemara/listen/?s=gKL",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -75,7 +75,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 244,
     "fileSizeMb": 5.7,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/64/35/40/643540a2-a05e-3e86-d9ee-da970c76cf8e/V4HttpAssetRepositoryClient-ticket.fxqmvnbz.jpg-3996104797570655989.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/dewa-19-roman-picisan/listen/?s=KSt",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/dewa-19-roman-picisan/listen/?s=KSt",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -88,7 +88,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 295,
     "fileSizeMb": 6.9,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/d0/fb/4c/d0fb4ca3-b820-5bdb-72ad-8783b3290381/cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/diskoria-balada-insan-muda/listen/?s=WDN",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/diskoria-balada-insan-muda/listen/?s=WDN",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -101,7 +101,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 252,
     "fileSizeMb": 5.9,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/6a/e0/8e/6ae08e8c-1131-604a-8e71-cd7aac0613c8/25UMGIM61182.rgb.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/geisha-garis-tangan-ost-antologi-rasa/listen/?s=alx",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/geisha-garis-tangan-ost-antologi-rasa/listen/?s=alx",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -114,7 +114,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 233,
     "fileSizeMb": 5.5,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/78/b1/bd/78b1bd53-0567-dc0d-8d88-bbd15261a288/mzi.umwrfzzq.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/glenn-fredly-akhir-cerita-cinta/listen/?s=Hdv",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/glenn-fredly-akhir-cerita-cinta/listen/?s=Hdv",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -127,7 +127,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 266,
     "fileSizeMb": 6.2,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/f1/44/10/f14410aa-80ef-aaaa-0082-7d0299c07cea/886446693644.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/isyana-sarasvati-lembaran-buku/listen/?s=X2N",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/isyana-sarasvati-lembaran-buku/listen/?s=X2N",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -140,7 +140,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 303,
     "fileSizeMb": 7.1,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/d1/4f/4c/d14f4c1d-ad20-3b62-25df-808b6b1f5b11/886447448748.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/isyana-sarasvati-rara-sekar-luruh/listen/?s=12E",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/isyana-sarasvati-rara-sekar-luruh/listen/?s=12E",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -153,7 +153,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 243,
     "fileSizeMb": 5.7,
     "coverUrl": "https://img.hearthis.at/1/8/8/_/uploads/8975742/image_track/1688940/w800_h800_q70_ptrue_v2_----cropped_1514336881.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/isyana-saraswati-kau-adalah-feat-rayi-putra/listen/?s=bqt",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/isyana-saraswati-kau-adalah-feat-rayi-putra/listen/?s=bqt",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -166,7 +166,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 208,
     "fileSizeMb": 4.9,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/eb/d5/87/ebd58706-c2ab-a194-458c-16ec39ac7621/886446949185.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/jaz-teman-bahagia/listen/?s=lUH",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/jaz-teman-bahagia/listen/?s=lUH",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -179,7 +179,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 223,
     "fileSizeMb": 5.2,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/3a/1c/c6/3a1cc6c2-98c8-a113-d7d2-7627c618e46c/886445710007.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/jaz-dari-mata/listen/?s=tcE",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/jaz-dari-mata/listen/?s=tcE",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -192,7 +192,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 234,
     "fileSizeMb": 5.5,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/d1/4f/4c/d14f4c1d-ad20-3b62-25df-808b6b1f5b11/886447448748.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/jaz-berdua-bersama-milly-mamet-original-motion-picture-soundtrack/listen/?s=jVs",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/jaz-berdua-bersama-milly-mamet-original-motion-picture-soundtrack/listen/?s=jVs",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -205,7 +205,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 239,
     "fileSizeMb": 5.6,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music/v4/d9/56/d4/d956d49a-9c63-ad42-cde7-ddc7dd0b2c52/825646570720.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/kotak-pelan-pelan-saja/listen/?s=reo",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/kotak-pelan-pelan-saja/listen/?s=reo",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -218,7 +218,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 170,
     "fileSizeMb": 4,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/cc/e1/72/cce17256-1aff-e9f1-c96e-62d246b8e04b/3615936961447.png/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/mocca-aku-dan-kamu/listen/?s=67Y",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/mocca-aku-dan-kamu/listen/?s=67Y",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -231,7 +231,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 239,
     "fileSizeMb": 5.6,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music123/v4/82/8a/16/828a16e3-b19d-78b2-116d-c96ec316c1f7/Monita_Tahalea_-_Malam_Tanpa_Mimpi.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/monita-tahalea-malam-tanpa-mimpi-ost-teman-tidur-the-movie/listen/?s=i2R",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/monita-tahalea-malam-tanpa-mimpi-ost-teman-tidur-the-movie/listen/?s=i2R",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -244,7 +244,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 258,
     "fileSizeMb": 6,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/10/0c/f5/100cf5cb-2319-8747-c285-14a219984549/artwork.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/monita-tahalea-sesaat-yang-abadi/listen/?s=M0z",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/monita-tahalea-sesaat-yang-abadi/listen/?s=M0z",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -257,7 +257,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 278,
     "fileSizeMb": 6.5,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/26/f8/ca/26f8cabe-a810-ba69-9239-5ea86c487a96/cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/nadin-amizah-sorai/listen/?s=87V",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/nadin-amizah-sorai/listen/?s=87V",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -270,7 +270,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 329,
     "fileSizeMb": 7.7,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music118/v4/6d/fa/28/6dfa28fc-4973-2319-a633-6193635ab8d7/cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/payung-teduh-di-atas-meja/listen/?s=XD3",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/payung-teduh-di-atas-meja/listen/?s=XD3",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -283,7 +283,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 336,
     "fileSizeMb": 7.9,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/23/1f/27/231f27f0-5396-f80b-fce1-7c8cd2c5a9d0/cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/payung-teduh-untuk-perempuan-yang-sedang-di-pelukan/listen/?s=kD1",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/payung-teduh-untuk-perempuan-yang-sedang-di-pelukan/listen/?s=kD1",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -296,7 +296,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 240,
     "fileSizeMb": 5.6,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/d5/1d/82/d51d82d2-65b9-4ada-9f40-ab9121320e4c/23UMGIM15051.rgb.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/rizky-febian-indah-pada-waktunya-feat-aisyah-aziz/listen/?s=k0z",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/rizky-febian-indah-pada-waktunya-feat-aisyah-aziz/listen/?s=k0z",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -309,7 +309,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 215,
     "fileSizeMb": 5,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/fd/e8/36/fde836bf-ebe3-0b92-e31c-0f89867cff22/23UMGIM15041.rgb.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/rizky-febian-kesempurnaan-cinta/listen/?s=uls",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/rizky-febian-kesempurnaan-cinta/listen/?s=uls",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -322,7 +322,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 223,
     "fileSizeMb": 5.2,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/5a/69/54/5a695472-ccc4-3922-bd5f-939feff54b05/199800024511.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/sheila-on-7-film-favorit/listen/?s=C6X",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/sheila-on-7-film-favorit/listen/?s=C6X",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -335,7 +335,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 276,
     "fileSizeMb": 6.5,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music/90/01/6d/mzi.ywjxtlbq.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/sheila-on-7-kita/listen/?s=cqw",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/sheila-on-7-kita/listen/?s=cqw",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -348,7 +348,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 294,
     "fileSizeMb": 6.9,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music/ce/e0/61/mzi.jgqtztab.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/sheila-on-7-sephia/listen/?s=lKU",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/sheila-on-7-sephia/listen/?s=lKU",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -361,7 +361,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 221,
     "fileSizeMb": 5.2,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/18/ef/7b/18ef7b5d-80e8-e4c7-838a-3110ebf94e52/cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/tulus-jangan-cintai-aku-apa-adanya/listen/?s=gA0",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/tulus-jangan-cintai-aku-apa-adanya/listen/?s=gA0",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -374,7 +374,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 247,
     "fileSizeMb": 5.8,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/41/3b/ab/413bab1d-856a-91e4-56e8-79e887f77f02/8994925080501.png/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/andrea-miranda-perahu-di-atas-bukit/listen/?s=gIA",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/andrea-miranda-perahu-di-atas-bukit/listen/?s=gIA",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -387,7 +387,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 234,
     "fileSizeMb": 5.5,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music118/v4/8f/22/4a/8f224a52-585d-13d9-639b-ffa5106f0fd7/00600753045978.rgb.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/ran-selamat-pagi/listen/?s=jvf",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/ran-selamat-pagi/listen/?s=jvf",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -400,7 +400,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 247,
     "fileSizeMb": 5.8,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/ad/b1/21/adb12118-d1d1-3b81-0ee5-8eb4e5b37851/8994925087302.png/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/syaharani-ticco-laksana-affectinfract-angin-dan-mentari/listen/?s=Ntq",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/syaharani-ticco-laksana-affectinfract-angin-dan-mentari/listen/?s=Ntq",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -413,7 +413,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 300,
     "fileSizeMb": 7,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/ef/1e/0b/ef1e0b84-1e56-1cae-5d5d-c25c97ade1bf/190295109103.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/slank-kamu-harus-pulang/listen/?s=jJo",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/slank-kamu-harus-pulang/listen/?s=jJo",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -426,7 +426,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 236,
     "fileSizeMb": 5.5,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/07/24/64/0724645b-b575-1799-e2bc-9c7ffe7d12d7/00602567433774.rgb.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/abdul-the-coffee-theory-tak-pernah-terganti/listen/?s=XWq",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/abdul-the-coffee-theory-tak-pernah-terganti/listen/?s=XWq",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -439,7 +439,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 185,
     "fileSizeMb": 4.3,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/d8/1e/59/d81e5908-8c33-b0c3-5742-c251ed11cf28/193483450001.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/abram-rian-cult-feat-heidi-jauregui-sundays-in-new-york/listen/?s=81A",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/abram-rian-cult-feat-heidi-jauregui-sundays-in-new-york/listen/?s=81A",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -452,7 +452,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 282,
     "fileSizeMb": 6.6,
     "coverUrl": "https://img.hearthis.at/8/3/4/_/uploads/9255533/image_track/3105903/w800_h800_q70_ptrue_v2_----cropped_1558188348438.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/achmad-albar-x-kemal-palevi-zakia/listen/?s=4yh",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/achmad-albar-x-kemal-palevi-zakia/listen/?s=4yh",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -465,7 +465,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 301,
     "fileSizeMb": 7.1,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/37/9c/0f/379c0fb2-4ba7-eb91-f073-2f5f1adcdf99/190296748646.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/ada-band-masih-sahabatku-kekasihku/listen/?s=7o1",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/ada-band-masih-sahabatku-kekasihku/listen/?s=7o1",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -478,7 +478,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 276,
     "fileSizeMb": 6.5,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/1b/b6/b7/1bb6b733-ac64-21ce-c195-b780c693d5d3/190296749162.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/ada-band-karena-wanita-ingin-dimengerti/listen/?s=0P3",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/ada-band-karena-wanita-ingin-dimengerti/listen/?s=0P3",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -491,7 +491,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 273,
     "fileSizeMb": 6.4,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/9b/c3/4a/9bc34a65-14c8-3efa-7a78-b60bcc573d5a/859725169727_cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/adera-serpihan-hati/listen/?s=JdW",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/adera-serpihan-hati/listen/?s=JdW",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -504,7 +504,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 211,
     "fileSizeMb": 4.9,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music20/v4/f2/ad/d9/f2add97d-9b26-c88b-1eea-9f17edb4c222/artwork.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/adera-lebih-indah/listen/?s=qvQ",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/adera-lebih-indah/listen/?s=qvQ",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -517,7 +517,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 234,
     "fileSizeMb": 5.5,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/0e/95/1b/0e951b05-7ca1-0dc5-bd47-c6fd0b1e345f/8994925080242.png/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/adinda-shalahita-no-fear/listen/?s=fIn",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/adinda-shalahita-no-fear/listen/?s=fIn",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -530,7 +530,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 178,
     "fileSizeMb": 4.2,
     "coverUrl": "https://img.hearthis.at/5/7/0/_/uploads/9255533/image_track/3106406/w800_h800_q70_ptrue_v2_----cropped_1558205501075.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/aditya-rayi-putra-sivia-tuantigabelas-rise/listen/?s=YeI",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/aditya-rayi-putra-sivia-tuantigabelas-rise/listen/?s=YeI",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -543,7 +543,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 313,
     "fileSizeMb": 7.3,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/51/76/77/51767701-fcd7-de23-9d38-a6a6602522a1/192641392122_Cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/adrian-khalif-take-care-feat-cantika-abigail/listen/?s=J76",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/adrian-khalif-take-care-feat-cantika-abigail/listen/?s=J76",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -556,7 +556,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 227,
     "fileSizeMb": 5.3,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/ae/47/89/ae47898a-9dba-a780-bf83-dc49c4ffb53b/236627.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/alika-luka/listen/?s=vZX",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/alika-luka/listen/?s=vZX",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -569,7 +569,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 286,
     "fileSizeMb": 6.7,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music/v4/0a/90/29/0a9029cd-1760-5bac-67eb-a488972d24e1/ari_lasso_keseimbangan.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/ari-lasso-cinta-sejati/listen/?s=MUo",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/ari-lasso-cinta-sejati/listen/?s=MUo",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -582,7 +582,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 250,
     "fileSizeMb": 5.9,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/a2/de/76/a2de7652-4997-62d2-2784-451a1885c271/25UM1IM02804.rgb.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/armand-maulana-hanya-engkau-yang-bisa/listen/?s=WNf",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/armand-maulana-hanya-engkau-yang-bisa/listen/?s=WNf",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -595,7 +595,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 287,
     "fileSizeMb": 6.7,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/cf/d9/89/cfd989e3-e085-2a23-e292-72cf5fe0fa6a/25UM1IM02894.rgb.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/armand-maulana-dewi-gita-perjalanan-cinta-terima-kasih-sayang/listen/?s=0ax",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/armand-maulana-dewi-gita-perjalanan-cinta-terima-kasih-sayang/listen/?s=0ax",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -608,7 +608,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 206,
     "fileSizeMb": 4.8,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/20/de/26/20de26f0-4fb4-de50-3971-e1d9dbfd90f4/17UM1IM65167.rgb.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/arsy-widianto-nembak-menyatakan-cinta/listen/?s=4Ew",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/arsy-widianto-nembak-menyatakan-cinta/listen/?s=4Ew",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -621,7 +621,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 229,
     "fileSizeMb": 5.4,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/0b/a1/05/0ba105ea-60d2-4477-918f-c5573417d9b0/Lingkaran-iTunes.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/astrid-lingkaran/listen/?s=8Dw",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/astrid-lingkaran/listen/?s=8Dw",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -634,7 +634,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 219,
     "fileSizeMb": 5.1,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/02/4e/4a/024e4a4e-84b2-ae60-4b45-306e63efdb8d/KenanglahAku.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/astrid-kenanglah-aku-ost-the-sacred-riana/listen/?s=P5W",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/astrid-kenanglah-aku-ost-the-sacred-riana/listen/?s=P5W",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -647,7 +647,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 323,
     "fileSizeMb": 7.6,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/11/5b/6d/115b6d29-f4fd-dad2-3759-f14b48fa8e34/cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/aya-anjani-juwita/listen/?s=9zV",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/aya-anjani-juwita/listen/?s=9zV",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -660,7 +660,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 185,
     "fileSizeMb": 4.3,
     "coverUrl": "https://img.hearthis.at/2/0/3/_/uploads/9255533/image_track/3106613/w800_h800_q70_ptrue_v2_----cropped_1558217091302.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/aydra-caecillia-clevt-night-talks/listen/?s=d6G",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/aydra-caecillia-clevt-night-talks/listen/?s=d6G",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -673,7 +673,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 206,
     "fileSizeMb": 4.8,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/b9/8e/b0/b98eb0c9-632e-6986-caf6-60562433f0ba/23UMGIM15334.rgb.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/besixxs-so-fine/listen/?s=q4g",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/besixxs-so-fine/listen/?s=q4g",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -686,7 +686,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 225,
     "fileSizeMb": 5.3,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/d6/47/c9/d647c941-53b6-eb6f-bd1e-6ea4c7f87e74/23UMGIM15332.rgb.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/besixxs-aku-padamu/listen/?s=aEf",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/besixxs-aku-padamu/listen/?s=aEf",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -699,7 +699,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 200,
     "fileSizeMb": 4.7,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/56/db/8e/56db8e64-1249-3c76-c5d5-6b1242ccbd59/00602567437284.rgb.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/billy-simpson-i-need-love-feat-rayi-putra/listen/?s=zUE",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/billy-simpson-i-need-love-feat-rayi-putra/listen/?s=zUE",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -712,7 +712,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 249,
     "fileSizeMb": 5.8,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/27/d8/88/27d88817-7177-3687-1a46-211de9c2fef2/cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/bisma-karisma-rumah-ost-silariang-the-movie/listen/?s=FB8",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/bisma-karisma-rumah-ost-silariang-the-movie/listen/?s=FB8",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -725,7 +725,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 268,
     "fileSizeMb": 6.3,
     "coverUrl": "https://img.hearthis.at/2/7/5/_/uploads/9255533/image_track/3106323/w800_h800_q70_ptrue_v2_----cropped_1558202908572.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/caffeine-x-widi-vierratale-hidupku-kan-damaikan-hatimu/listen/?s=wv5",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/caffeine-x-widi-vierratale-hidupku-kan-damaikan-hatimu/listen/?s=wv5",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -738,7 +738,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 232,
     "fileSizeMb": 5.4,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/28/a3/7d/28a37d2f-f061-6a37-2b69-59361330a85d/2018-02-18-PHOTO-00003509.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/cakra-khan-jangan-mudah-putus-asa-ost-guru-ngaji/listen/?s=rTI",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/cakra-khan-jangan-mudah-putus-asa-ost-guru-ngaji/listen/?s=rTI",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -751,7 +751,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 242,
     "fileSizeMb": 5.7,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/df/26/5c/df265ce9-8c33-fbc8-73ef-15000a09bfca/24UMGIM29506.rgb.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/carlo-saba-setahun-kemarin/listen/?s=ugl",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/carlo-saba-setahun-kemarin/listen/?s=ugl",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -764,7 +764,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 305,
     "fileSizeMb": 7.1,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/88/08/80/88088069-7074-2cf3-0f03-35a614cba28c/cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/dewa-pupus/listen/?s=zWV",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/dewa-pupus/listen/?s=zWV",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -777,7 +777,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 321,
     "fileSizeMb": 7.5,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/64/35/40/643540a2-a05e-3e86-d9ee-da970c76cf8e/V4HttpAssetRepositoryClient-ticket.fxqmvnbz.jpg-3996104797570655989.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/dewa-dua-sejoli/listen/?s=RUD",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/dewa-dua-sejoli/listen/?s=RUD",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -790,7 +790,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 259,
     "fileSizeMb": 6.1,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/ea/4b/92/ea4b92ab-a8b4-068e-8a76-7833d909e705/24UMGIM29150.rgb.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/dmasiv-jangan-menyerah/listen/?s=mP3",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/dmasiv-jangan-menyerah/listen/?s=mP3",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -803,7 +803,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 285,
     "fileSizeMb": 6.7,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/e2/a1/2f/e2a12f2f-e82c-6071-30ee-c19f8ca7d57f/cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/elephant-kind-i-believe-in-you/listen/?s=DZN",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/elephant-kind-i-believe-in-you/listen/?s=DZN",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -816,7 +816,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 201,
     "fileSizeMb": 4.7,
     "coverUrl": "https://img.hearthis.at/6/4/3/_/uploads/8975742/image_track/1789868/w800_h800_q70_ptrue_v2_----cropped_1520121760346.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/endah-n-rhesa-menua-bersama/listen/?s=HGM",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/endah-n-rhesa-menua-bersama/listen/?s=HGM",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -829,7 +829,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 273,
     "fileSizeMb": 6.4,
     "coverUrl": "https://img.hearthis.at/6/5/8/_/uploads/9255533/image_track/3106634/w800_h800_q70_ptrue_v2_----cropped_1558217932856.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/fabian-winandi-pertemuan-semu/listen/?s=ger",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/fabian-winandi-pertemuan-semu/listen/?s=ger",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -842,7 +842,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 241,
     "fileSizeMb": 5.6,
     "coverUrl": "https://img.hearthis.at/2/4/9/_/uploads/8975742/image_track/1683284/w800_h800_q70_ptrue_v2_----cropped_1514006942.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/fade2black-takkan-berhenti/listen/?s=GXa",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/fade2black-takkan-berhenti/listen/?s=GXa",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -855,7 +855,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 315,
     "fileSizeMb": 7.4,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/8d/0d/2a/8d0d2a56-f130-b448-766c-0db28c2dc159/859720673458_cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/farman-purnama-tak-terjadi/listen/?s=wDi",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/farman-purnama-tak-terjadi/listen/?s=wDi",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -868,7 +868,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 196,
     "fileSizeMb": 4.6,
     "coverUrl": "https://img.hearthis.at/3/4/4/_/uploads/8975742/image_track/1750059/w800_h800_q70_ptrue_v2_----cropped_1517806655443.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/fatin-shoot-me-now/listen/?s=4vE",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/fatin-shoot-me-now/listen/?s=4vE",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -881,7 +881,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 187,
     "fileSizeMb": 4.4,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music113/v4/a3/f0/3e/a3f03e7b-cf63-d831-0db3-a3b66f0c9d4d/886447686676.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/fatin-bersyukurlah/listen/?s=4rk",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/fatin-bersyukurlah/listen/?s=4rk",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -894,7 +894,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 233,
     "fileSizeMb": 5.5,
     "coverUrl": "https://img.hearthis.at/8/0/1/_/uploads/8975742/image_user/w800_h800_q70_ptrue_v2_----cropped_1512203108.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/febri-yoga-lelaki-beruntung/listen/?s=JUk",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/febri-yoga-lelaki-beruntung/listen/?s=JUk",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -907,7 +907,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 170,
     "fileSizeMb": 4,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music118/v4/1a/a2/05/1aa205cf-a2cb-2792-35c3-8a573264daab/886446920665.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/gac-gamaliel-audrey-cantika-satu/listen/?s=H0C",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/gac-gamaliel-audrey-cantika-satu/listen/?s=H0C",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -920,7 +920,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 262,
     "fileSizeMb": 6.1,
     "coverUrl": "https://img.hearthis.at/4/3/9/_/uploads/8975742/image_track/1718997/w800_h800_q70_ptrue_v2_----cropped_1515728897934.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/gio-lelaki-kamu/listen/?s=6K9",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/gio-lelaki-kamu/listen/?s=6K9",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -933,7 +933,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 257,
     "fileSizeMb": 6,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/1f/96/07/1f960763-dd6f-1afd-10f6-4e08fcb6d3de/5021732102126.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/gisel-abirama-sendirian/listen/?s=DYT",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/gisel-abirama-sendirian/listen/?s=DYT",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -946,7 +946,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 223,
     "fileSizeMb": 5.2,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/2e/be/14/2ebe149e-c388-c88d-0029-0b32ddbcc24f/192562001264.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/goldwin-tergila-gila-karenamu/listen/?s=He7",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/goldwin-tergila-gila-karenamu/listen/?s=He7",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -959,7 +959,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 280,
     "fileSizeMb": 6.6,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music122/v4/be/f6/61/bef66125-9e6e-ce6b-2f4f-0202f429e053/196925369251.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/hedi-yunus-feat-sara-fajira-jika/listen/?s=yfP",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/hedi-yunus-feat-sara-fajira-jika/listen/?s=yfP",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -972,7 +972,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 280,
     "fileSizeMb": 6.6,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/ce/fe/aa/cefeaac7-2d41-75e9-51c6-c009b3dea412/03614592043696_Cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/hivi-siapkah-kau-tuk-jatuh-cinta-lagi/listen/?s=98n",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/hivi-siapkah-kau-tuk-jatuh-cinta-lagi/listen/?s=98n",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -985,7 +985,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 222,
     "fileSizeMb": 5.2,
     "coverUrl": "https://img.hearthis.at/0/2/1/_/uploads/8975742/image_track/1678463/w800_h800_q70_ptrue_v2_----cropped_1513649120.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/husein-alatas-itu-dosa/listen/?s=VkR",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/husein-alatas-itu-dosa/listen/?s=VkR",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -998,7 +998,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 200,
     "fileSizeMb": 4.7,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/98/af/0c/98af0cc3-04b3-23e1-4686-e3e8d4cdbb8e/197338324615.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/ibel-tenny-bahasa-tubuh/listen/?s=NnU",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/ibel-tenny-bahasa-tubuh/listen/?s=NnU",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1011,7 +1011,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 235,
     "fileSizeMb": 5.5,
     "coverUrl": "https://img.hearthis.at/8/0/1/_/uploads/8975742/image_user/w800_h800_q70_ptrue_v2_----cropped_1512203108.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/iqbaal-ramadhan-rindu-sendiri-ost-dilan-1990/listen/?s=YcO",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/iqbaal-ramadhan-rindu-sendiri-ost-dilan-1990/listen/?s=YcO",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1024,7 +1024,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 251,
     "fileSizeMb": 5.9,
     "coverUrl": "https://img.hearthis.at/0/6/2/_/uploads/8975742/image_track/1688886/w800_h800_q70_ptrue_v2_----cropped_1514335260.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/iwan-fals-yang-terlupakan-feat-noah/listen/?s=hGp",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/iwan-fals-yang-terlupakan-feat-noah/listen/?s=hGp",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1037,7 +1037,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 247,
     "fileSizeMb": 5.8,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music123/v4/b7/60/14/b760145f-4f59-1b87-7091-f76fa61bc564/cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/jevin-julian-ft-kara-chenoa-no-clue/listen/?s=Vhl",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/jevin-julian-ft-kara-chenoa-no-clue/listen/?s=Vhl",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1050,7 +1050,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 243,
     "fileSizeMb": 5.7,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music111/v4/d2/70/5d/d2705d15-5a59-a86c-acec-41bcac7fc086/886446418230.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/judika-jikalau-kau-cinta/listen/?s=oyl",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/judika-jikalau-kau-cinta/listen/?s=oyl",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1063,7 +1063,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 205,
     "fileSizeMb": 4.8,
     "coverUrl": "https://img.hearthis.at/1/2/9/_/uploads/8975742/image_track/1689660/w800_h800_q70_ptrue_v2_----cropped_1514387921.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/judika-sampai-akhir-feat-duma/listen/?s=M3R",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/judika-sampai-akhir-feat-duma/listen/?s=M3R",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1076,7 +1076,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 231,
     "fileSizeMb": 5.4,
     "coverUrl": "https://img.hearthis.at/1/0/1/_/uploads/8975742/image_track/1763784/w800_h800_q70_ptrue_v2_----cropped_1518571500101.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/juliette-selalu-dalam-hatiku/listen/?s=eu3",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/juliette-selalu-dalam-hatiku/listen/?s=eu3",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1089,7 +1089,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 248,
     "fileSizeMb": 5.8,
     "coverUrl": "https://img.hearthis.at/5/6/1/_/uploads/9255533/image_track/3106945/w800_h800_q70_ptrue_v2_----cropped_1558238818165.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/kimokal-just-like-you/listen/?s=4HJ",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/kimokal-just-like-you/listen/?s=4HJ",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1102,7 +1102,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 326,
     "fileSizeMb": 7.6,
     "coverUrl": "https://img.hearthis.at/6/7/4/_/uploads/8975742/image_track/1687564/w800_h800_q70_ptrue_v2_----cropped_1514268476.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/kla-project-terpuruk-ku-disini/listen/?s=oYF",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/kla-project-terpuruk-ku-disini/listen/?s=oYF",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1115,7 +1115,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 217,
     "fileSizeMb": 5.1,
     "coverUrl": "https://img.hearthis.at/8/0/1/_/uploads/8975742/image_user/w800_h800_q70_ptrue_v2_----cropped_1512203108.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/krisdayanti-im-sorry-goodbye-MiD/listen/?s=MiD",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/krisdayanti-im-sorry-goodbye-MiD/listen/?s=MiD",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1128,7 +1128,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 250,
     "fileSizeMb": 5.9,
     "coverUrl": "https://img.hearthis.at/3/0/0/_/uploads/8975742/image_track/1690479/w800_h800_q70_ptrue_v2_----cropped_1514428003.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/laluna-selepas-kau-pergi/listen/?s=aP9",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/laluna-selepas-kau-pergi/listen/?s=aP9",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1141,7 +1141,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 184,
     "fileSizeMb": 4.3,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/eb/1e/db/eb1edbfa-e984-d07e-cb37-98abfdf6f511/859729064219_cover.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/lingua-arti-sebuah-keangkuhan/listen/?s=4gr",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/lingua-arti-sebuah-keangkuhan/listen/?s=4gr",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1154,7 +1154,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 282,
     "fileSizeMb": 6.6,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/cb/ad/db/cbaddb12-7dcf-dc8e-ce17-7e093ea587c7/190295245382.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/margareth-sayang/listen/?s=CRV",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/margareth-sayang/listen/?s=CRV",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1167,7 +1167,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 308,
     "fileSizeMb": 7.2,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/c6/e1/b4/c6e1b44f-143d-c986-e44e-590e29fca0e9/25UM1IM02880.rgb.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/mawar-de-jongh-feat-julian-jacob-heartbeat/listen/?s=bkc",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/mawar-de-jongh-feat-julian-jacob-heartbeat/listen/?s=bkc",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1180,7 +1180,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 271,
     "fileSizeMb": 6.4,
     "coverUrl": "https://img.hearthis.at/3/7/8/_/uploads/8975742/image_track/1678462/w800_h800_q70_ptrue_v2_----cropped_1513648873.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/melly-goeslaw-i-do-feat-rama-davis/listen/?s=m0g",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/melly-goeslaw-i-do-feat-rama-davis/listen/?s=m0g",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1193,7 +1193,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 230,
     "fileSizeMb": 5.4,
     "coverUrl": "https://img.hearthis.at/9/9/0/_/uploads/9255533/image_track/3106398/w800_h800_q70_ptrue_v2_----cropped_1558205125099.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/memes-prameswari-sampai-kapan/listen/?s=onr",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/memes-prameswari-sampai-kapan/listen/?s=onr",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1206,7 +1206,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 276,
     "fileSizeMb": 6.5,
     "coverUrl": "https://img.hearthis.at/9/4/2/_/uploads/8975742/image_track/1689006/w800_h800_q70_ptrue_v2_----cropped_1514341249.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/mike-mohede-sahabat-jadi-cinta/listen/?s=M6B",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/mike-mohede-sahabat-jadi-cinta/listen/?s=M6B",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1219,7 +1219,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 362,
     "fileSizeMb": 8.5,
     "coverUrl": "https://img.hearthis.at/8/2/1/_/uploads/9255533/image_track/3106977/w800_h800_q70_ptrue_v2_----cropped_1558241479128.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/morsh-abadi/listen/?s=PHK",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/morsh-abadi/listen/?s=PHK",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1232,7 +1232,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 229,
     "fileSizeMb": 5.4,
     "coverUrl": "https://img.hearthis.at/1/2/2/_/uploads/8975742/image_track/1687578/w800_h800_q70_ptrue_v2_----cropped_1514270221.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/mytha-begitulah/listen/?s=3tB",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/mytha-begitulah/listen/?s=3tB",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1245,7 +1245,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 210,
     "fileSizeMb": 4.9,
     "coverUrl": "https://img.hearthis.at/9/5/4/_/uploads/8975742/image_track/1686335/w800_h800_q70_ptrue_v2_----cropped_1514192459.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/nadya-fatira-penyendiri/listen/?s=3Eh",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/nadya-fatira-penyendiri/listen/?s=3Eh",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1258,7 +1258,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 222,
     "fileSizeMb": 5.2,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/8c/c8/2d/8cc82db1-63ce-1b12-82f1-ca7a1e8190af/antara_ada_dan_tiada_5psd.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/nagita-slavina-marshanda-antara-ada-dan-tiada/listen/?s=Wrj",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/nagita-slavina-marshanda-antara-ada-dan-tiada/listen/?s=Wrj",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1271,7 +1271,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 218,
     "fileSizeMb": 5.1,
     "coverUrl": "https://img.hearthis.at/8/7/0/_/uploads/8975742/image_track/1687394/w800_h800_q70_ptrue_v2_----cropped_1514252078.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/nidji-bebas-untuk-menang-yoi/listen/?s=mzn",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/nidji-bebas-untuk-menang-yoi/listen/?s=mzn",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1284,7 +1284,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 226,
     "fileSizeMb": 5.3,
     "coverUrl": "https://img.hearthis.at/5/5/6/_/uploads/8975742/image_track/1687391/w800_h800_q70_ptrue_v2_----cropped_1514251655.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/nidji-kanye/listen/?s=d1w",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/nidji-kanye/listen/?s=d1w",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1297,7 +1297,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 263,
     "fileSizeMb": 6.2,
     "coverUrl": "https://img.hearthis.at/0/4/4/_/uploads/8975742/image_track/1676829/w800_h800_q70_ptrue_v2_----cropped_1513586440.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/nidji-feat-dea-hancur-aku/listen/?s=tJS",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/nidji-feat-dea-hancur-aku/listen/?s=tJS",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1310,7 +1310,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 271,
     "fileSizeMb": 6.4,
     "coverUrl": "https://img.hearthis.at/8/0/1/_/uploads/8975742/image_user/w800_h800_q70_ptrue_v2_----cropped_1512203108.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/nineball-hingga-akhir-waktu-ost-hingga-akhir-waktu/listen/?s=X53",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/nineball-hingga-akhir-waktu-ost-hingga-akhir-waktu/listen/?s=X53",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1323,7 +1323,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 216,
     "fileSizeMb": 5.1,
     "coverUrl": "https://img.hearthis.at/7/2/3/_/uploads/8975742/image_track/1765844/w800_h800_q70_ptrue_v2_----cropped_1518693829327.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/novita-dewi-tak-terganti/listen/?s=Xgf",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/novita-dewi-tak-terganti/listen/?s=Xgf",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1336,7 +1336,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 172,
     "fileSizeMb": 4,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/ff/bb/aa/ffbbaa90-44bf-abdd-27eb-9f4d7a8025e8/190295673215.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/rahmania-astrini-aku-cinta-dia/listen/?s=KJs",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/rahmania-astrini-aku-cinta-dia/listen/?s=KJs",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1349,7 +1349,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 190,
     "fileSizeMb": 4.5,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/43/4d/94/434d9422-9df0-1c94-8c65-ba76bf03a95f/190295710385.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/rahmania-astrini-menua-bersama/listen/?s=gFM",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/rahmania-astrini-menua-bersama/listen/?s=gFM",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1362,7 +1362,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 294,
     "fileSizeMb": 6.9,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/ec/d1/71/ecd17195-00a8-c08d-08aa-c014e0cb0286/artwork.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/rayen-pono-stop-bicara/listen/?s=D3X",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/rayen-pono-stop-bicara/listen/?s=D3X",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1375,7 +1375,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 197,
     "fileSizeMb": 4.6,
     "coverUrl": "https://img.hearthis.at/2/0/2/_/uploads/8975742/image_track/1779950/w800_h800_q70_ptrue_v2_----cropped_1519552441202.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/repvblik-omong-kosong/listen/?s=b2v",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/repvblik-omong-kosong/listen/?s=b2v",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1388,7 +1388,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 338,
     "fileSizeMb": 7.9,
     "coverUrl": "https://img.hearthis.at/3/8/1/_/uploads/8975742/image_track/1689710/w800_h800_q70_ptrue_v2_----cropped_1514390183.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/reza-cintakan-membawamu-kembali/listen/?s=BVb",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/reza-cintakan-membawamu-kembali/listen/?s=BVb",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1401,7 +1401,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 252,
     "fileSizeMb": 5.9,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/0e/52/8a/0e528ac3-17c5-8c16-c26a-8dbeee8f49bc/Reza_Apple_ID.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/reza-artamevia-selalu-ada/listen/?s=ub5",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/reza-artamevia-selalu-ada/listen/?s=ub5",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1414,7 +1414,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 245,
     "fileSizeMb": 5.7,
     "coverUrl": "https://img.hearthis.at/4/4/2/_/uploads/8975742/image_track/1676827/w800_h800_q70_ptrue_v2_----cropped_1513586244.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/rif-malaikat-kecil/listen/?s=gIM",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/rif-malaikat-kecil/listen/?s=gIM",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1427,7 +1427,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 223,
     "fileSizeMb": 5.2,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f2/c9/6e/f2c96eb6-5aa7-1cec-9c48-9a5b3a9aa73a/810090096339.png/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/rinni-wulandari-stay/listen/?s=juO",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/rinni-wulandari-stay/listen/?s=juO",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1440,7 +1440,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 232,
     "fileSizeMb": 5.4,
     "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/9e/f8/38/9ef838bb-4509-c632-886c-3bc7b130d690/artwork.jpg/600x600bb.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/rumah-sakit-featuring-adinda-thomas-hilang/listen/?s=uTW",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/rumah-sakit-featuring-adinda-thomas-hilang/listen/?s=uTW",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1453,7 +1453,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 234,
     "fileSizeMb": 5.5,
     "coverUrl": "https://img.hearthis.at/4/4/1/_/uploads/8975742/image_track/1779964/w800_h800_q70_ptrue_v2_----cropped_1519554137144.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/ruth-sahanaya-gitaku/listen/?s=Pwc",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/ruth-sahanaya-gitaku/listen/?s=Pwc",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1466,7 +1466,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 237,
     "fileSizeMb": 5.6,
     "coverUrl": "https://img.hearthis.at/1/1/0/_/uploads/9255533/image_track/3106679/w800_h800_q70_ptrue_v2_----cropped_1558220972011.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/sabrina-samsons-stay-as-you-are/listen/?s=IBD",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/sabrina-samsons-stay-as-you-are/listen/?s=IBD",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1479,7 +1479,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 215,
     "fileSizeMb": 5,
     "coverUrl": "https://img.hearthis.at/1/5/6/_/uploads/8975742/image_track/1765813/w800_h800_q70_ptrue_v2_----cropped_1518692197651.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/sandy-canester-salut-perempuan-feat-tohpati/listen/?s=rn4",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/sandy-canester-salut-perempuan-feat-tohpati/listen/?s=rn4",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1492,7 +1492,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 229,
     "fileSizeMb": 5.4,
     "coverUrl": "https://img.hearthis.at/1/9/2/_/uploads/9255533/image_track/3106943/w800_h800_q70_ptrue_v2_----cropped_1558238450291.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/sarah-usman-be-mine/listen/?s=G25",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/sarah-usman-be-mine/listen/?s=G25",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1505,7 +1505,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 232,
     "fileSizeMb": 5.4,
     "coverUrl": "https://img.hearthis.at/1/7/0/_/uploads/8975742/image_track/1779955/w800_h800_q70_ptrue_v2_----cropped_1519553457071.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/second-civil-kusebut-namamu/listen/?s=ExY",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/second-civil-kusebut-namamu/listen/?s=ExY",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1518,7 +1518,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 246,
     "fileSizeMb": 5.8,
     "coverUrl": "https://img.hearthis.at/8/0/1/_/uploads/8975742/image_user/w800_h800_q70_ptrue_v2_----cropped_1512203108.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/shena-malsiana-imaji/listen/?s=uTD",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/shena-malsiana-imaji/listen/?s=uTD",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1531,7 +1531,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 286,
     "fileSizeMb": 6.7,
     "coverUrl": "https://img.hearthis.at/8/0/1/_/uploads/8975742/image_user/w800_h800_q70_ptrue_v2_----cropped_1512203108.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/sinikini-dan-senyumlah/listen/?s=jzE",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/sinikini-dan-senyumlah/listen/?s=jzE",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1544,7 +1544,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 235,
     "fileSizeMb": 5.5,
     "coverUrl": "https://img.hearthis.at/7/8/3/_/uploads/8975742/image_track/1689702/w800_h800_q70_ptrue_v2_----cropped_1514389387.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana-ri/tangga-kesempatan-kedua/listen/?s=DMN",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana-ri/tangga-kesempatan-kedua/listen/?s=DMN",
     "source": "ytmusic",
     "isPreview": false
   },
@@ -1557,7 +1557,7 @@ export const YOUTUBE_MUSIC_AND_ONLINE_TRACKS: Track[] = [
     "durationSec": 222,
     "fileSizeMb": 5.2,
     "coverUrl": "https://img.hearthis.at/9/8/2/_/uploads/9255533/image_track/3106353/w800_h800_q70_ptrue_v2_----cropped_1558203661289.jpg",
-    "audioUrl": "https://hearthis.app/adhi-nurdhiana/tata-janeeta-featuring-once-mekel-disempurnakan-cinta/listen/?s=a92",
+    "audioUrl": "https://hearthis.at/adhi-nurdhiana/tata-janeeta-featuring-once-mekel-disempurnakan-cinta/listen/?s=a92",
     "source": "ytmusic",
     "isPreview": false
   }

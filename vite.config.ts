@@ -79,6 +79,10 @@ export default defineConfig(() => {
               },
             },
             {
+              urlPattern: /^\/api\/music\/(audio|ytm-audio).*/i,
+              handler: 'NetworkOnly',
+            },
+            {
               urlPattern: /^\/api\/music\/discover.*/i,
               handler: 'NetworkFirst',
               options: {
@@ -95,7 +99,7 @@ export default defineConfig(() => {
           ],
         },
         devOptions: {
-          enabled: true,
+          enabled: false,
           type: 'module',
         },
       }),
