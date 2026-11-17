@@ -41,6 +41,11 @@ const ALL_INDEXED_TRACKS: Track[] = [
   ...LOCAL_BUNDLED_TRACKS,
 ];
 
+const ALL_INDEXED_MAP = new Map<string, Track>();
+for (const t of ALL_INDEXED_TRACKS) {
+  ALL_INDEXED_MAP.set(t.id, t);
+}
+
 // Cache of synced Google Drive folders (folderId -> { updatedAt, tracks })
 const driveFolderCache = new Map<
   string,
@@ -49,6 +54,102 @@ const driveFolderCache = new Map<
 
 // Cache of resolved audio URLs for YouTube Music tracks (key -> resolved upstream audio URL)
 const ytmAudioUrlCache = new Map<string, string>();
+
+// In-memory LRU cache of full MP3 track buffers for instant (<1ms) HTTP 206 Range responses
+const MAX_CACHED_AUDIO_BUFFERS = 30;
+const audioBufferCache = new Map<
+  string,
+  { buffer: Buffer; contentType: string }
+>();
+const inFlightBufferWarmups = new Map<string, Promise<Buffer | null>>();
+
+function normalizeUpstreamAudioUrl(rawUrl: string): string {
+  return rawUrl.replace(/^https:\/\/hearthis\.app\//i, 'https://hearthis.at/');
+}
+
+function storeAudioBufferInCache(
+  normalizedUrl: string,
+  buffer: Buffer,
+  contentType: string
+): void {
+  if (buffer.length < 32768) return;
+  if (audioBufferCache.has(normalizedUrl)) {
+    audioBufferCache.delete(normalizedUrl);
+  } else if (audioBufferCache.size >= MAX_CACHED_AUDIO_BUFFERS) {
+    const oldestKey = audioBufferCache.keys().next().value;
+    if (oldestKey) {
+      audioBufferCache.delete(oldestKey);
+    }
+  }
+  audioBufferCache.set(normalizedUrl, { buffer, contentType });
+}
+
+function warmTrackBuffer(rawUrl: string): Promise<Buffer | null> {
+  const normalizedUrl = normalizeUpstreamAudioUrl(rawUrl);
+  if (!normalizedUrl.startsWith('https://')) {
+    return Promise.resolve(null);
+  }
+  const existing = audioBufferCache.get(normalizedUrl);
+  if (existing) {
+    return Promise.resolve(existing.buffer);
+  }
+  const inFlight = inFlightBufferWarmups.get(normalizedUrl);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const promise = (async () => {
+    try {
+      const res = await fetch(normalizedUrl, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(28000),
+      });
+      if (!res.ok && res.status !== 206) {
+        return null;
+      }
+      const rawCt = res.headers.get('content-type') || '';
+      if (rawCt.includes('text/html')) {
+        return null;
+      }
+      const ct =
+        rawCt.includes('audio/') || rawCt.includes('mpeg')
+          ? rawCt
+          : 'audio/mpeg';
+      const arr = await res.arrayBuffer();
+      const buf = Buffer.from(arr);
+      if (buf.length < 32768) {
+        return null;
+      }
+      storeAudioBufferInCache(normalizedUrl, buf, ct);
+      return buf;
+    } catch {
+      return null;
+    } finally {
+      inFlightBufferWarmups.delete(normalizedUrl);
+    }
+  })();
+
+  inFlightBufferWarmups.set(normalizedUrl, promise);
+  return promise;
+}
+
+async function prewarmInitialCatalog(): Promise<void> {
+  const priorityTracks = [
+    ...DRIVE_FOLDER_TRACKS.slice(0, 8),
+    ...YOUTUBE_MUSIC_AND_ONLINE_TRACKS.slice(0, 4),
+  ];
+  // Warm top 3 immediately in parallel so featured tracks ("Hati-Hati di Jalan", "penjaga hati", "About You") are in RAM right away
+  await Promise.all(
+    priorityTracks.slice(0, 3).map((t) => warmTrackBuffer(t.audioUrl))
+  );
+  for (const t of priorityTracks.slice(3)) {
+    await warmTrackBuffer(t.audioUrl);
+  }
+}
 
 async function fetchJsonWithTimeout<T>(
   url: string,
@@ -476,6 +577,72 @@ function filterCatalogByGenre(
   return combinedAll;
 }
 
+function serveCachedAudioBuffer(
+  cached: { buffer: Buffer; contentType: string },
+  req: express.Request,
+  res: express.Response,
+  isDownload: boolean,
+  title: string,
+  artist: string
+): void {
+  const total = cached.buffer.length;
+  res.setHeader('Content-Type', cached.contentType || 'audio/mpeg');
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader(
+    'Access-Control-Expose-Headers',
+    'Content-Length, Content-Range, Accept-Ranges'
+  );
+
+  if (isDownload) {
+    const filename = sanitizeDownloadFilename(title, artist);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  }
+
+  const incomingRange =
+    typeof req.headers.range === 'string' ? req.headers.range.trim() : '';
+
+  if (incomingRange) {
+    const match = /bytes=(\d*)-(\d*)/.exec(incomingRange);
+    if (match) {
+      let start = match[1] ? parseInt(match[1], 10) : 0;
+      let end = match[2] ? parseInt(match[2], 10) : total - 1;
+      if (!match[1] && match[2]) {
+        const suffixLen = parseInt(match[2], 10);
+        start = Math.max(0, total - suffixLen);
+        end = total - 1;
+      }
+      if (start >= total || start < 0 || end < start) {
+        res.status(416);
+        res.setHeader('Content-Range', `bytes */${total}`);
+        res.end();
+        return;
+      }
+      end = Math.min(end, total - 1);
+      const slice = cached.buffer.subarray(start, end + 1);
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
+      res.setHeader('Content-Length', String(slice.length));
+      if (req.method === 'HEAD') {
+        res.end();
+        return;
+      }
+      res.end(slice);
+      return;
+    }
+  }
+
+  res.status(200);
+  res.setHeader('Content-Length', String(total));
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
+  res.end(cached.buffer);
+}
+
 async function pipeUpstreamAudio(
   rawUrl: string,
   req: express.Request,
@@ -484,6 +651,21 @@ async function pipeUpstreamAudio(
   title: string,
   artist: string
 ) {
+  const normalizedUrl = normalizeUpstreamAudioUrl(rawUrl);
+
+  // 1. Serve immediately (<1ms) if the full MP3 is already in our RAM buffer cache
+  const cached = audioBufferCache.get(normalizedUrl);
+  if (cached) {
+    // Refresh LRU order
+    audioBufferCache.delete(normalizedUrl);
+    audioBufferCache.set(normalizedUrl, cached);
+    serveCachedAudioBuffer(cached, req, res, isDownload, title, artist);
+    return;
+  }
+
+  // Trigger background full-track warmup so subsequent Range probes (e.g. Safari 2-byte probe -> header probe -> play) are served in <1ms from RAM
+  void warmTrackBuffer(normalizedUrl);
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
@@ -495,11 +677,6 @@ async function pipeUpstreamAudio(
   res.on('close', onResponseClose);
 
   try {
-    const normalizedUrl = rawUrl.replace(
-      /^https:\/\/hearthis\.app\//i,
-      'https://hearthis.at/'
-    );
-
     const headers: Record<string, string> = {
       'User-Agent':
         'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
@@ -523,6 +700,18 @@ async function pipeUpstreamAudio(
     if (!upstream.ok && upstream.status !== 206) {
       const fallbackUrl = DRIVE_FOLDER_TRACKS[0]?.audioUrl;
       if (fallbackUrl && fallbackUrl !== normalizedUrl) {
+        const fallbackCached = audioBufferCache.get(fallbackUrl);
+        if (fallbackCached) {
+          serveCachedAudioBuffer(
+            fallbackCached,
+            req,
+            res,
+            isDownload,
+            title,
+            artist
+          );
+          return;
+        }
         upstream = await fetch(fallbackUrl, {
           method: req.method === 'HEAD' ? 'HEAD' : 'GET',
           headers,
@@ -551,6 +740,7 @@ async function pipeUpstreamAudio(
     res.status(upstream.status);
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('X-Accel-Buffering', 'no');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader(
       'Access-Control-Expose-Headers',
@@ -592,8 +782,8 @@ async function pipeUpstreamAudio(
 async function startServer() {
   const app = express();
 
-  // Self-destructing /dev-sw.js endpoint to cleanly evict any stale VitePWA dev service worker on mobile browsers
-  app.get('/dev-sw.js', (_req, res) => {
+  // Self-destructing /sw.js and /dev-sw.js endpoints to cleanly evict any stale VitePWA service worker
+  app.get(['/sw.js', '/dev-sw.js'], (_req, res) => {
     res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.send(
@@ -603,9 +793,23 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
       .then(() => self.registration.unregister())
+      .then(() => self.clients.matchAll({ type: 'window' }))
+      .then((clients) => {
+        clients.forEach((client) => {
+          if ('navigate' in client) {
+            client.navigate(client.url);
+          }
+        });
+      })
   );
 });`
     );
+  });
+
+  app.get('/registerSW.js', (_req, res) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.send('// Service Worker registration disabled in preview\n');
   });
 
   app.get('/api/health', (_req, res) => {
@@ -813,12 +1017,48 @@ self.addEventListener('activate', (event) => {
     }
   });
 
+  // Clean static-style MP3 route (/audio/tracks/:trackParam) for instant mobile <audio> playback
+  app.all('/audio/tracks/:trackParam', async (req, res) => {
+    const rawParam = String(req.params.trackParam || '').replace(/\.mp3$/i, '');
+    const track = ALL_INDEXED_MAP.get(rawParam) || PRE_ENRICHED_DRIVE_MAP.get(rawParam);
+    const queryUrl = String(req.query.url || '');
+    const targetUrl =
+      track && track.audioUrl.startsWith('https://')
+        ? track.audioUrl
+        : isSafeAudioProxyUrl(queryUrl)
+        ? queryUrl
+        : rawParam.startsWith('gdrive-')
+        ? `https://drive.usercontent.google.com/download?id=${encodeURIComponent(rawParam.replace(/^gdrive-/, ''))}&export=download&confirm=t`
+        : '';
+
+    if (!targetUrl || !isSafeAudioProxyUrl(targetUrl)) {
+      res.status(404).json({ error: 'Track audio not found' });
+      return;
+    }
+
+    const isDownload = req.query.download === '1';
+    const title = String(req.query.title || track?.title || 'Track');
+    const artist = String(req.query.artist || track?.artist || 'ReyTune');
+
+    try {
+      await pipeUpstreamAudio(targetUrl, req, res, isDownload, title, artist);
+    } catch {
+      if (!res.headersSent) {
+        res.status(502).json({ error: 'Audio stream failed' });
+      }
+    }
+  });
+
   // Proxy audio stream (mounted on /api/stream-track.mp3 to bypass any stale Service Worker regex, plus /api/music/audio)
   app.all(['/api/stream-track.mp3', '/api/music/audio'], async (req, res) => {
-    const rawUrl = String(req.query.url || '');
+    const trackId = String(req.query.id || '').trim();
+    const indexedTrack = trackId ? ALL_INDEXED_MAP.get(trackId) : undefined;
+    const rawUrl = String(
+      req.query.url || (indexedTrack?.audioUrl.startsWith('https://') ? indexedTrack.audioUrl : '')
+    );
     const isDownload = req.query.download === '1';
-    const title = String(req.query.title || 'Track');
-    const artist = String(req.query.artist || 'ReyTune');
+    const title = String(req.query.title || indexedTrack?.title || 'Track');
+    const artist = String(req.query.artist || indexedTrack?.artist || 'ReyTune');
 
     if (!isSafeAudioProxyUrl(rawUrl)) {
       res.status(400).json({ error: 'Invalid or unsupported audio URL' });
@@ -851,6 +1091,7 @@ self.addEventListener('activate', (event) => {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`ReyTune server listening on http://localhost:${PORT}`);
+    void prewarmInitialCatalog();
   });
 }
 

@@ -71,6 +71,12 @@ function getDirectAudioSrc(track: Track): string {
 }
 
 function getProxyAudioSrc(track: Track): string {
+  if (
+    (track.id.startsWith('gdrive-') || track.id.startsWith('ytm-')) &&
+    (track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://'))
+  ) {
+    return `/audio/tracks/${encodeURIComponent(track.id)}.mp3`;
+  }
   if (track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')) {
     const normalized = getDirectAudioSrc(track);
     return `/api/stream-track.mp3?url=${encodeURIComponent(normalized)}&id=${encodeURIComponent(track.id)}`;
@@ -82,26 +88,29 @@ function getProxyAudioSrc(track: Track): string {
 }
 
 function getPlayableAudioSrc(track: Track): string {
-  // Direct HTTPS URLs (drive.usercontent.google.com & hearthis.at) support browser CORS/streaming
-  // without hitting /api/* (which can be blocked by mobile iframe 3rd-party cookie restrictions)
-  if (track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')) {
-    return getDirectAudioSrc(track);
-  }
   return getProxyAudioSrc(track);
 }
 
-function configureAudioElementForSrc(audio: HTMLAudioElement, src: string): void {
-  if (
-    src.includes('drive.usercontent.google.com') ||
-    src.includes('drive.google.com')
-  ) {
-    // Google Drive sets Cross-Origin-Resource-Policy: same-site AND Access-Control-Allow-Origin: *.
-    // Setting crossOrigin = 'anonymous' switches <audio> from 'no-cors' (blocked by CORP)
-    // to 'cors' mode (allowed by Access-Control-Allow-Origin: * with zero cookies required).
-    audio.crossOrigin = 'anonymous';
-  } else {
-    audio.removeAttribute('crossorigin');
+function configureAudioElementForSrc(audio: HTMLAudioElement, _src: string): void {
+  // Never set crossOrigin="anonymous" on <audio> so same-origin /audio/tracks/* and /api/* requests
+  // include Partitioned session cookies, and fallback hearthis.at streams play in no-cors media mode.
+  audio.removeAttribute('crossorigin');
+}
+
+function triggerAuthBridgeHandshakeOnce(): boolean {
+  if (typeof window === 'undefined' || typeof sessionStorage === 'undefined') {
+    return false;
   }
+  const now = Date.now();
+  const lastTs = Number(sessionStorage.getItem('reytune_auth_refresh_ts') || '0');
+  if (now - lastTs < 25000) {
+    return false;
+  }
+  sessionStorage.setItem('reytune_auth_refresh_ts', String(now));
+  const url = new URL(window.location.href);
+  url.searchParams.set('__storage_access_granted', '1');
+  window.location.replace(url.toString());
+  return true;
 }
 
 function filterClientCatalogByGenre(genre: string): Track[] {
@@ -340,8 +349,13 @@ export default function App() {
       try {
         const res = await fetch(
           `/api/music/discover?genre=${encodeURIComponent(genre)}&folder=${encodeURIComponent(targetFolder)}${forceRefresh ? '&refresh=1' : ''}`,
-          { signal: AbortSignal.timeout(8500) }
+          { credentials: 'include', signal: AbortSignal.timeout(8500) }
         );
+        const contentType = (res.headers.get('content-type') || '').toLowerCase();
+        if (res.url.includes('__cookie_check') || contentType.includes('text/html')) {
+          triggerAuthBridgeHandshakeOnce();
+          throw new Error('Auth handshake required');
+        }
         if (!res.ok) throw new Error('Discover request failed');
         const data = (await res.json()) as { tracks?: Track[]; live?: boolean };
         if (Array.isArray(data.tracks) && data.tracks.length > 0) {
@@ -482,58 +496,57 @@ export default function App() {
     return getPlayableAudioSrc(track);
   }, []);
 
-  // Fallback recovery using CORS fetch -> Blob URL (tries direct Google Drive / Hearthis CDN first, then backend proxy)
+  // Fallback recovery using backend proxy fetch -> Blob URL (or direct hearthis.at stream if applicable)
   const recoverPlaybackViaFetch = useCallback(
     async (track: Track, reqId: number) => {
       const audio = audioRef.current;
       if (!audio || playRequestIdRef.current !== reqId) return;
-      // Prevent duplicate concurrent recovery for the same play request
       if (activeRecoveryReqIdRef.current === reqId) return;
       activeRecoveryReqIdRef.current = reqId;
 
       const directUrl = getDirectAudioSrc(track);
       const proxyUrl = getProxyAudioSrc(track);
+      const fallbackApiUrl =
+        track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')
+          ? `/api/stream-track.mp3?url=${encodeURIComponent(directUrl)}&id=${encodeURIComponent(track.id)}`
+          : proxyUrl;
 
       try {
-        let res: Response | null = null;
-        let usedSourceUrl = directUrl;
+        let res = await fetch(proxyUrl, {
+          credentials: 'include',
+          headers: { Range: 'bytes=0-524287' },
+        }).catch(() => null);
 
-        // 1. First try direct CORS fetch to Google Drive / Hearthis CDN (completely bypasses /api/* iframe cookie restrictions)
-        if (directUrl.startsWith('https://')) {
-          try {
-            const isDrive =
-              directUrl.includes('drive.usercontent.google.com') ||
-              directUrl.includes('drive.google.com');
-            res = await fetch(directUrl, {
-              mode: 'cors',
-              credentials: 'omit',
-              headers: isDrive ? { Range: 'bytes=0-524287' } : undefined,
-            });
-            if (!res.ok && res.status !== 206 && isDrive) {
-              res = await fetch(directUrl, {
-                mode: 'cors',
-                credentials: 'omit',
-              });
-            }
-          } catch {
-            res = null;
-          }
-        }
-
-        // 2. Fallback to backend proxy (/api/stream-track.mp3) if direct CORS fetch was not applicable or failed
-        if (!res || (!res.ok && res.status !== 206)) {
-          usedSourceUrl = proxyUrl;
-          res = await fetch(proxyUrl, {
+        if (
+          !res ||
+          (!res.ok && res.status !== 206) ||
+          (res.headers.get('content-type') || '').toLowerCase().includes('text/html')
+        ) {
+          res = await fetch(fallbackApiUrl, {
             credentials: 'include',
-            headers: { Range: 'bytes=0-524287' },
-          });
-          if (!res.ok && res.status !== 206) {
-            res = await fetch(proxyUrl, { credentials: 'include' });
-          }
+          }).catch(() => null);
         }
 
-        if (!res.ok && res.status !== 206) {
-          throw new Error(`HTTP ${res.status}`);
+        const ct = (res?.headers.get('content-type') || '').toLowerCase();
+        if (!res || (!res.ok && res.status !== 206) || ct.includes('text/html')) {
+          // If backend returned HTML (__cookie_check.html) or failed and track is a hearthis.at CDN URL,
+          // play hearthis.at directly in <audio> (hearthis.at supports cross-site <audio> directly)
+          if (directUrl.includes('hearthis.at/')) {
+            if (playRequestIdRef.current !== reqId) return;
+            isSwitchingTrackRef.current = true;
+            configureAudioElementForSrc(audio, directUrl);
+            audio.src = directUrl;
+            await audio.play();
+            if (playRequestIdRef.current === reqId) {
+              isSwitchingTrackRef.current = false;
+              setIsPlaying(true);
+            }
+            return;
+          }
+          if (ct.includes('text/html')) {
+            triggerAuthBridgeHandshakeOnce();
+          }
+          throw new Error(`HTTP ${res?.status ?? 0}`);
         }
 
         const buf = await res.arrayBuffer();
@@ -584,14 +597,13 @@ export default function App() {
 
         // If initial response was a 206 starter chunk, fetch the complete full-length MP3 in background
         if (isPartial && !offlineBlobUrlsRef.current[track.id]) {
-          const isDirectHttps = usedSourceUrl.startsWith('https://');
-          void fetch(
-            usedSourceUrl,
-            isDirectHttps
-              ? { mode: 'cors', credentials: 'omit' }
-              : { credentials: 'include' }
-          )
-            .then((fullRes) => (fullRes.ok ? fullRes.arrayBuffer() : null))
+          void fetch(proxyUrl, { credentials: 'include' })
+            .then((fullRes) =>
+              fullRes.ok &&
+              !(fullRes.headers.get('content-type') || '').toLowerCase().includes('text/html')
+                ? fullRes.arrayBuffer()
+                : null
+            )
             .then((fullBuf) => {
               if (fullBuf && fullBuf.byteLength > buf.byteLength) {
                 const fullBlob = new Blob([fullBuf], { type: 'audio/mpeg' });
@@ -1168,23 +1180,13 @@ export default function App() {
       setDownloadProgressMap((prev) => ({ ...prev, [track.id]: 5 }));
 
       try {
-        const directUrl = getDirectAudioSrc(track);
         const proxyUrl = getProxyAudioSrc(track);
-        let fetchUrl = directUrl;
-        let res: Response | null = null;
-
-        if (directUrl.startsWith('https://')) {
-          try {
-            res = await fetch(directUrl, { mode: 'cors', credentials: 'omit' });
-          } catch {
-            res = null;
-          }
+        const fetchUrl = proxyUrl;
+        const res = await fetch(proxyUrl, { credentials: 'include' });
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (!res.ok || ct.includes('text/html')) {
+          throw new Error(`HTTP ${res.status}`);
         }
-        if (!res || !res.ok) {
-          fetchUrl = proxyUrl;
-          res = await fetch(proxyUrl);
-        }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const contentLength = Number(res.headers.get('content-length') || '0');
         let blob: Blob;
