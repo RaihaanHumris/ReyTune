@@ -54,34 +54,22 @@ interface ToastState {
   tone: 'success' | 'info' | 'warning';
 }
 
-// 44-byte silent WAV data URI used to unlock HTML5 Audio synchronously on first mobile touch
-const SILENT_WAV_DATA_URI =
-  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
-
 function getProxyAudioSrc(track: Track): string {
   if (track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')) {
     const normalized = track.audioUrl.replace(
       /^https:\/\/hearthis\.app\//i,
       'https://hearthis.at/'
     );
-    return `/api/music/audio?url=${encodeURIComponent(normalized)}`;
+    return `/api/stream-track.mp3?url=${encodeURIComponent(normalized)}&id=${encodeURIComponent(track.id)}`;
+  }
+  if (track.audioUrl.startsWith('/api/music/ytm-audio')) {
+    return track.audioUrl.replace('/api/music/ytm-audio', '/api/ytm-track.mp3');
   }
   return track.audioUrl;
 }
 
 function getPlayableAudioSrc(track: Track): string {
-  if (track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')) {
-    const normalized = track.audioUrl.replace(
-      /^https:\/\/hearthis\.app\//i,
-      'https://hearthis.at/'
-    );
-    // Hearthis CDN supports direct CORS/Range playback on mobile without proxy cookie restrictions
-    if (normalized.includes('hearthis.at/')) {
-      return normalized;
-    }
-    return `/api/music/audio?url=${encodeURIComponent(normalized)}`;
-  }
-  return track.audioUrl;
+  return getProxyAudioSrc(track);
 }
 
 export default function App() {
@@ -134,8 +122,8 @@ export default function App() {
   const partialBlobUrlsRef = useRef<Record<string, string>>({});
   const playRequestIdRef = useRef<number>(0);
   const activeRecoveryReqIdRef = useRef<number>(0);
+  const activeTrackRef = useRef<Track | null>(CATALOG_TRACKS[0] ?? null);
   const isSwitchingTrackRef = useRef<boolean>(false);
-  const isAudioUnlockedRef = useRef<boolean>(false);
   const [queue, setQueue] = useState<Track[]>(CATALOG_TRACKS);
   const [currentTrackId, setCurrentTrackId] = useState<string | null>(
     CATALOG_TRACKS[0]?.id ?? null
@@ -373,45 +361,6 @@ export default function App() {
     };
   }, []);
 
-  // Unlock HTML5 Audio element on the very first touchstart/pointerdown on mobile (iOS Safari & Android Chrome)
-  useEffect(() => {
-    const unlockAudio = () => {
-      if (isAudioUnlockedRef.current || playRequestIdRef.current !== 0) return;
-      const audio = audioRef.current;
-      if (!audio) return;
-      isAudioUnlockedRef.current = true;
-      if (audio.paused && !audio.src) {
-        isSwitchingTrackRef.current = true;
-        audio.muted = true;
-        audio.src = SILENT_WAV_DATA_URI;
-        const p = audio.play();
-        if (p !== undefined) {
-          p.then(() => {
-            if (playRequestIdRef.current === 0 && audio.src === SILENT_WAV_DATA_URI) {
-              audio.pause();
-              audio.removeAttribute('src');
-            }
-            audio.muted = false;
-            isSwitchingTrackRef.current = false;
-          }).catch(() => {
-            audio.muted = false;
-            isSwitchingTrackRef.current = false;
-          });
-        } else {
-          audio.muted = false;
-          isSwitchingTrackRef.current = false;
-        }
-      }
-    };
-
-    window.addEventListener('touchstart', unlockAudio, { passive: true, once: true });
-    window.addEventListener('pointerdown', unlockAudio, { passive: true, once: true });
-    return () => {
-      window.removeEventListener('touchstart', unlockAudio);
-      window.removeEventListener('pointerdown', unlockAudio);
-    };
-  }, []);
-
   // Synchronous audio source resolver so mobile browsers never lose user-gesture activation
   const getAudioSourceSync = useCallback((track: Track): string => {
     const cachedBlobUrl = offlineBlobUrlsRef.current[track.id];
@@ -437,13 +386,12 @@ export default function App() {
       const proxyUrl = getProxyAudioSrc(track);
 
       try {
-        // Fetch initial 1.8MB chunk via window.fetch (carries iframe credentials) for fast mobile startup
+        // Fetch fast 512KB starter chunk (~1.3s) so mobile user-gesture activation (<5s) never expires
         let res = await fetch(proxyUrl, {
           credentials: 'include',
-          headers: { Range: 'bytes=0-1887436' },
+          headers: { Range: 'bytes=0-524287' },
         });
         if (!res.ok && res.status !== 206) {
-          // Retry without Range header if Range failed
           res = await fetch(proxyUrl, { credentials: 'include' });
         }
         if (!res.ok && res.status !== 206) {
@@ -474,6 +422,7 @@ export default function App() {
         if (playRequestIdRef.current !== reqId) return;
         isSwitchingTrackRef.current = true;
         audio.muted = false;
+        audio.volume = 1;
         audio.src = blobUrl;
 
         try {
@@ -526,13 +475,15 @@ export default function App() {
       const audio = audioRef.current;
       if (!audio) return;
 
-      isAudioUnlockedRef.current = true;
+      activeTrackRef.current = track;
       const reqId = ++playRequestIdRef.current;
       const targetSrc = getAudioSourceSync(track);
 
       isSwitchingTrackRef.current = true;
       audio.muted = false;
+      audio.volume = 1;
       audio.src = targetSrc;
+      audio.load();
       setIsPlaying(true);
 
       const playPromise = audio.play();
@@ -616,7 +567,7 @@ export default function App() {
           audio.pause();
           setIsPlaying(false);
         } else {
-          if (!audio.src || audio.src === SILENT_WAV_DATA_URI || audio.error) {
+          if (!audio.src || audio.error) {
             triggerSyncPlayback(track);
           } else {
             const reqId = ++playRequestIdRef.current;
@@ -632,7 +583,6 @@ export default function App() {
                 if (playRequestIdRef.current !== reqId) return;
                 const errName = err instanceof Error ? err.name : '';
                 if (errName === 'AbortError') return;
-                // Reload and retry once if the preloaded element was stale on mobile
                 triggerSyncPlayback(track);
               });
             }
@@ -674,7 +624,7 @@ export default function App() {
       audio.pause();
       setIsPlaying(false);
     } else {
-      if (!audio.src || audio.src === SILENT_WAV_DATA_URI || audio.error) {
+      if (!audio.src || audio.error) {
         triggerSyncPlayback(currentTrack);
       } else {
         const reqId = ++playRequestIdRef.current;
@@ -876,8 +826,9 @@ export default function App() {
       updateMediaSessionPosition();
     };
     const onError = () => {
-      if (currentTrack && isPlaying) {
-        void recoverPlaybackViaFetch(currentTrack, playRequestIdRef.current);
+      const targetTrack = activeTrackRef.current || currentTrack;
+      if (targetTrack && playRequestIdRef.current > 0) {
+        void recoverPlaybackViaFetch(targetTrack, playRequestIdRef.current);
       }
     };
     const onEnded = () => {
@@ -1156,9 +1107,9 @@ export default function App() {
 
         const downloadUrl =
           track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')
-            ? `/api/music/audio?url=${encodeURIComponent(track.audioUrl)}&download=1&title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`
+            ? `/api/stream-track.mp3?url=${encodeURIComponent(track.audioUrl)}&download=1&title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`
             : track.audioUrl.startsWith('/api/music/ytm-audio')
-            ? `${track.audioUrl}&download=1`
+            ? `${track.audioUrl.replace('/api/music/ytm-audio', '/api/ytm-track.mp3')}&download=1`
             : track.audioUrl;
 
         const a = document.createElement('a');

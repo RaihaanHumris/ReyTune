@@ -509,20 +509,7 @@ async function pipeUpstreamAudio(
       typeof req.headers.range === 'string' ? req.headers.range.trim() : '';
 
     if (incomingRange) {
-      const openRangeMatch =
-        !isDownload && /^bytes=(\d+)-$/i.exec(incomingRange);
-      const isDriveSource =
-        normalizedUrl.includes('drive.usercontent.google.com') ||
-        normalizedUrl.includes('drive.google.com');
-      if (openRangeMatch && isDriveSource) {
-        // Cap open-ended Range requests to 1.5MB chunks so Cloud Run reverse proxy
-        // flushes the first audio chunk in ~0.3s instead of buffering a 10MB file
-        const startByte = Number(openRangeMatch[1]);
-        const endByte = startByte + 1572863;
-        headers.Range = `bytes=${startByte}-${endByte}`;
-      } else {
-        headers.Range = incomingRange;
-      }
+      headers.Range = incomingRange;
     }
 
     let upstream = await fetch(normalizedUrl, {
@@ -563,7 +550,7 @@ async function pipeUpstreamAudio(
 
     res.status(upstream.status);
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader(
       'Access-Control-Expose-Headers',
@@ -604,6 +591,22 @@ async function pipeUpstreamAudio(
 
 async function startServer() {
   const app = express();
+
+  // Self-destructing /dev-sw.js endpoint to cleanly evict any stale VitePWA dev service worker on mobile browsers
+  app.get('/dev-sw.js', (_req, res) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.send(
+      `self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+      .then(() => self.registration.unregister())
+  );
+});`
+    );
+  });
 
   app.get('/api/health', (_req, res) => {
     res.json({
@@ -650,8 +653,8 @@ async function startServer() {
     });
   });
 
-  // Smart Audio Stream Resolver for YouTube Music tracks
-  app.all('/api/music/ytm-audio', async (req, res) => {
+  // Smart Audio Stream Resolver for YouTube Music tracks (mounted on both /api/ytm-track.mp3 and /api/music/ytm-audio)
+  app.all(['/api/ytm-track.mp3', '/api/music/ytm-audio'], async (req, res) => {
     const videoId = String(req.query.videoId || '').trim();
     const title = String(req.query.title || 'Track').trim();
     const artist = String(req.query.artist || 'Artist').trim();
@@ -810,8 +813,8 @@ async function startServer() {
     }
   });
 
-  // Proxy audio stream (supports Google Drive direct downloads, Hearthis.at, iTunes, Range requests, and Audius streams)
-  app.all('/api/music/audio', async (req, res) => {
+  // Proxy audio stream (mounted on /api/stream-track.mp3 to bypass any stale Service Worker regex, plus /api/music/audio)
+  app.all(['/api/stream-track.mp3', '/api/music/audio'], async (req, res) => {
     const rawUrl = String(req.query.url || '');
     const isDownload = req.query.download === '1';
     const title = String(req.query.title || 'Track');

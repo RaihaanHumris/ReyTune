@@ -79,7 +79,7 @@ export default defineConfig(() => {
               },
             },
             {
-              urlPattern: /^\/api\/music\/(audio|ytm-audio).*/i,
+              urlPattern: /^\/api\/(stream-track\.mp3|ytm-track\.mp3|music\/(audio|ytm-audio)).*/i,
               handler: 'NetworkOnly',
             },
             {
