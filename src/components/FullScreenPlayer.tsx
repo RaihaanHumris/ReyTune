@@ -3,7 +3,9 @@ import {
   CheckCircle2,
   ChevronDown,
   Disc3,
+  ExternalLink,
   FileDown,
+  FolderSync,
   Heart,
   ListPlus,
   Mic2,
@@ -95,6 +97,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'player' | 'lyrics'>('player');
   const [showYtPlayer, setShowYtPlayer] = useState(false);
+  const [showDrivePlayer, setShowDrivePlayer] = useState(false);
   const [lyricsData, setLyricsData] = useState<LyricsResponse | null>(null);
   const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
   const [autoScrollLyrics, setAutoScrollLyrics] = useState(true);
@@ -249,6 +252,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
   // Automatically extract/load lyrics whenever the playing song changes (so Lyrics page & dot badge are ready immediately)
   useEffect(() => {
     setShowYtPlayer(false);
+    setShowDrivePlayer(Boolean(track?.drivePreviewOnly && track?.driveFileId));
     setAutoScrollLyrics(true);
     if (!track) {
       setLyricsData(null);
@@ -610,7 +614,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
               </div>
             ) : (
               <>
-                {/* Optional YouTube Music Video/Audio Mode Switcher */}
+                {/* Optional YouTube Music / Google Drive Embedded Player Switcher */}
                 {!isOfflineMode && track.youtubeVideoId && (
                   <div className="flex justify-center mt-2 shrink-0">
                     <button
@@ -637,7 +641,44 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                   </div>
                 )}
 
-                {/* Large Album Artwork or Embedded YouTube Music Player */}
+                {!isOfflineMode && !track.youtubeVideoId && track.driveFileId && (
+                  <div className="flex items-center justify-center gap-2 mt-2 shrink-0">
+                    {!track.drivePreviewOnly && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!showDrivePlayer && isPlaying) {
+                            onTogglePlay();
+                          }
+                          setShowDrivePlayer((prev) => !prev);
+                        }}
+                        className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${
+                          showDrivePlayer
+                            ? 'bg-[#10B981] text-[#0B0F17] border-[#10B981]'
+                            : 'bg-[#131A26] text-[#94A3B8] hover:text-[#F8FAFC] border-[#1E293B]'
+                        }`}
+                      >
+                        <FolderSync size={13} />
+                        <span>
+                          {showDrivePlayer
+                            ? 'Kembali ke Audio Stream Cepat'
+                            : 'Buka Player Asli Google Drive'}
+                        </span>
+                      </button>
+                    )}
+                    <a
+                      href={`https://drive.google.com/file/d/${encodeURIComponent(track.driveFileId)}/view`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#131A26] hover:bg-[#1E293B] border border-[#1E293B] text-[11px] font-medium text-[#94A3B8] hover:text-[#F8FAFC] transition-colors"
+                    >
+                      <ExternalLink size={12} />
+                      <span>Buka File di Drive</span>
+                    </a>
+                  </div>
+                )}
+
+                {/* Large Album Artwork or Embedded YouTube Music / Google Drive Player */}
                 <div className="relative my-3 flex items-center justify-center">
                   <motion.div
                     aria-hidden="true"
@@ -661,6 +702,19 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                         allowFullScreen
                         className="w-full h-full border-0"
                       />
+                    </div>
+                  ) : showDrivePlayer && track.driveFileId ? (
+                    <div className="relative w-full max-w-[310px] aspect-square rounded-2xl overflow-hidden shadow-2xl shadow-black/70 border border-[#1E293B] bg-[#0B0F17] flex flex-col">
+                      <iframe
+                        src={`https://drive.google.com/file/d/${encodeURIComponent(track.driveFileId)}/preview`}
+                        title={`Google Drive Audio: ${track.title}`}
+                        allow="autoplay; encrypted-media"
+                        allowFullScreen
+                        className="w-full flex-1 border-0"
+                      />
+                      <div className="px-3 py-1.5 bg-[#131A26] border-t border-[#1E293B] text-[10px] text-[#94A3B8] text-center">
+                        Memakai sesi login Google browser Anda tanpa OAuth
+                      </div>
                     </div>
                   ) : (
                     <motion.div

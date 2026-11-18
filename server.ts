@@ -15,6 +15,7 @@ import { parseId3FromBytes } from './src/utils/id3LyricsParser.ts';
 import {
   extractDriveFileId,
   extractDriveFolderId,
+  extractDriveResourceKey,
   extractGitHubRepoSource,
   isSafeAudioProxyUrl,
   normalizeAudiusTrack,
@@ -24,6 +25,7 @@ import {
   normalizeRadioStationTrack,
   parseDriveAudioFilename,
   parseDriveEmbeddedFolderHtml,
+  parseDriveSubfoldersFromHtml,
   parseLrcLyrics,
   parseYouTubeMusicSearchResponse,
   sanitizeDownloadFilename,
@@ -256,15 +258,17 @@ async function fetchUpstreamAudioWithFallback(
   }
 
   const cachedResolved = driveResolvedUrlCache.get(driveFileId);
+  const resourceKey = extractDriveResourceKey(normalizedUrl);
+  const rkParam = resourceKey ? `&resourcekey=${encodeURIComponent(resourceKey)}` : '';
   const candidates: { url: string; cookie?: string }[] = [];
   if (cachedResolved && cachedResolved.expiresAt > Date.now()) {
     candidates.push({ url: cachedResolved.url, cookie: cachedResolved.cookie });
   }
   candidates.push({
-    url: `https://drive.usercontent.google.com/download?id=${encodeURIComponent(driveFileId)}&export=download&confirm=t`,
+    url: `https://drive.usercontent.google.com/download?id=${encodeURIComponent(driveFileId)}&export=download&confirm=t${rkParam}`,
   });
   candidates.push({
-    url: `https://drive.google.com/uc?export=download&confirm=t&id=${encodeURIComponent(driveFileId)}`,
+    url: `https://drive.google.com/uc?export=download&confirm=t&id=${encodeURIComponent(driveFileId)}${rkParam}`,
   });
 
   let lastResponse: Response | null = null;
@@ -700,43 +704,99 @@ async function resolveYouTubeMusicAudioUrl(
   return artistFullFallback?.audioUrl || null;
 }
 
+function extractDriveViewTitle(html: string): {
+  title: string | null;
+  requiresLogin: boolean;
+} {
+  const requiresLogin =
+    /accounts\.google\.com\/ServiceLogin|Sign in - Google Accounts|You need access|Perlu akses|Minta akses/i.test(
+      html
+    );
+  const ogMatch = /<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i.exec(html);
+  const rawTitle =
+    ogMatch?.[1] ||
+    (/<title>([^<]+)<\/title>/i.exec(html)?.[1] || '').replace(/\s*-\s*Google Drive\s*$/i, '');
+  const cleaned = rawTitle
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+  if (
+    !cleaned ||
+    /^(Google Drive|Sign in|Access denied|Error|Meet Google Drive|Page Not Found|Not Found|找不到|Tidak ditemukan|404|403)/i.test(
+      cleaned
+    )
+  ) {
+    return { title: null, requiresLogin };
+  }
+  return { title: cleaned, requiresLogin };
+}
+
 async function getSingleDriveFileTrack(
-  fileId: string
+  fileId: string,
+  resourceKey?: string
 ): Promise<{ folderId: string; tracks: Track[]; live: boolean; error?: string }> {
-  const downloadUrl = `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download&confirm=t`;
-  try {
-    const headRes = await fetch(downloadUrl, {
-      method: 'HEAD',
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-      },
+  const rkQuery = resourceKey ? `?resourcekey=${encodeURIComponent(resourceKey)}` : '';
+  const rkParam = resourceKey ? `&resourcekey=${encodeURIComponent(resourceKey)}` : '';
+  const downloadUrl = `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download&confirm=t${rkParam}`;
+  const viewUrl = `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view${rkQuery}`;
+  const previewUrl = `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/preview${rkQuery}`;
+
+  const [audioProbe, viewMeta] = await Promise.all([
+    fetchUpstreamAudioWithFallback(
+      downloadUrl,
+      'GET',
+      'bytes=0-262143',
+      AbortSignal.timeout(9000)
+    ).catch(() => null),
+    fetch(viewUrl, {
+      headers: { 'User-Agent': BROWSER_USER_AGENT },
       redirect: 'follow',
       signal: AbortSignal.timeout(6500),
-    });
+    })
+      .then(async (r) => extractDriveViewTitle(await r.text()))
+      .catch(() => ({ title: null, requiresLogin: false })),
+  ]);
 
-    const ct = (headRes.headers.get('content-type') || '').toLowerCase();
-    if (!headRes.ok || ct.includes('text/html')) {
-      return {
-        folderId: fileId,
-        tracks: [],
-        live: false,
-        error:
-          'File Google Drive tidak bisa diakses (masih Dibatasi/Private). Ubah berbagi ke "Siapa saja yang memiliki link".',
-      };
-    }
+  const ct = (audioProbe?.headers.get('content-type') || '').toLowerCase();
+  const audioOk =
+    Boolean(audioProbe) &&
+    (audioProbe!.ok || audioProbe!.status === 206) &&
+    !ct.includes('text/html');
 
-    const disp = headRes.headers.get('content-disposition') || '';
+  if (audioOk && audioProbe) {
+    const disp = audioProbe.headers.get('content-disposition') || '';
     const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(disp);
     const plainMatch = /filename="([^"]+)"/i.exec(disp);
-    let fileName = `Drive Audio ${fileId.slice(0, 6)}.mp3`;
+    let fileName = viewMeta.title || `Drive Audio ${fileId.slice(0, 6)}.mp3`;
     if (utf8Match?.[1]) {
       fileName = decodeURIComponent(utf8Match[1]);
     } else if (plainMatch?.[1]) {
       fileName = plainMatch[1];
     }
 
-    const rawTrack = normalizeDriveTrack(fileId, fileName, 0);
+    let rawTrack = normalizeDriveTrack(fileId, fileName, 0);
+    if (rkParam) {
+      rawTrack = { ...rawTrack, audioUrl: downloadUrl };
+    }
+
+    try {
+      const sliceBuf = Buffer.from(await audioProbe.arrayBuffer());
+      if (sliceBuf.length > 128) {
+        const id3 = parseId3FromBytes(sliceBuf);
+        if (id3.title) {
+          rawTrack = {
+            ...rawTrack,
+            title: id3.title,
+            artist: id3.artist || rawTrack.artist,
+            album: id3.album || rawTrack.album,
+          };
+        }
+      }
+    } catch {
+      // Ignore optional ID3 inspection failure
+    }
+
     const enriched = await enrichTrackWithItunes(rawTrack);
     PRE_ENRICHED_DRIVE_MAP.set(enriched.id, enriched);
     ALL_INDEXED_MAP.set(enriched.id, enriched);
@@ -747,14 +807,42 @@ async function getSingleDriveFileTrack(
       tracks: [enriched],
       live: true,
     };
-  } catch {
-    return {
-      folderId: fileId,
-      tracks: [],
-      live: false,
-      error: 'Gagal terhubung ke link file Google Drive tersebut.',
-    };
   }
+
+  // File cannot be fetched anonymously from the server (still Restricted/Private or requires login).
+  // Provide a browser-session Google Drive /preview fallback track so users logged into Google can still play it without OAuth.
+  const displayTitle = viewMeta.title
+    ? parseDriveAudioFilename(viewMeta.title).title
+    : `File Drive (${fileId.slice(0, 6)})`;
+  const displayArtist = viewMeta.title
+    ? parseDriveAudioFilename(viewMeta.title).artist
+    : 'Sesi Google Drive (Private)';
+
+  const previewTrack: Track = {
+    id: `gdrive-${fileId}`,
+    driveFileId: fileId,
+    drivePreviewOnly: true,
+    title: displayTitle,
+    artist: displayArtist,
+    album: 'Google Drive (Akses Terbatas)',
+    genre: 'Google Drive',
+    durationSec: 210,
+    fileSizeMb: 4.5,
+    coverUrl:
+      'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
+    audioUrl: previewUrl,
+    source: 'gdrive',
+    isPreview: true,
+  };
+
+  return {
+    folderId: fileId,
+    tracks: [previewTrack],
+    live: false,
+    error: viewMeta.requiresLogin
+      ? 'File Drive ini masih Dibatasi/Private. Klik Putar untuk memutar via sesi login Google di browser, atau ubah ke "Siapa saja yang memiliki link" agar bisa stream penuh & offline.'
+      : 'Server tidak diizinkan mengunduh byte audio langsung dari file Drive ini. Anda tetap bisa memutarnya lewat Player Google Drive di browser atau pilih lewat tombol "MP3 HP".',
+  };
 }
 
 async function getGitHubRepoTracks(
@@ -893,17 +981,19 @@ async function getDriveFolderTracks(
   rawFolderInput?: string,
   forceRefresh = false
 ): Promise<{ folderId: string; tracks: Track[]; live: boolean; error?: string }> {
-  if (extractGitHubRepoSource(rawFolderInput || '')) {
-    return getGitHubRepoTracks(rawFolderInput || '');
+  const input = (rawFolderInput || '').trim();
+  if (extractGitHubRepoSource(input)) {
+    return getGitHubRepoTracks(input);
   }
 
-  const singleFileId = extractDriveFileId(rawFolderInput || '');
+  const resourceKey = extractDriveResourceKey(input);
+  const singleFileId = extractDriveFileId(input);
   if (singleFileId) {
-    return getSingleDriveFileTrack(singleFileId);
+    return getSingleDriveFileTrack(singleFileId, resourceKey);
   }
 
-  const folderId =
-    extractDriveFolderId(rawFolderInput || '') || DEFAULT_DRIVE_FOLDER_ID;
+  const folderId = extractDriveFolderId(input) || DEFAULT_DRIVE_FOLDER_ID;
+  const isExplicitFolderUrl = /\/folders\//i.test(input);
 
   const cached = driveFolderCache.get(folderId);
   const now = Date.now();
@@ -911,19 +1001,90 @@ async function getDriveFolderTracks(
     return { folderId, tracks: cached.tracks, live: true };
   }
 
-  try {
-    const embedUrl = `https://drive.google.com/embeddedfolderview?id=${encodeURIComponent(folderId)}#list`;
-    const res = await fetch(embedUrl, {
-      headers: { 'User-Agent': 'ReyTune/1.0' },
-      signal: AbortSignal.timeout(6500),
-    });
+  const rkParam = resourceKey ? `&resourcekey=${encodeURIComponent(resourceKey)}` : '';
 
-    if (!res.ok) {
-      throw new Error(`Google Drive folder HTTP ${res.status}`);
+  const fetchEmbeddedFolder = async (
+    targetFolderId: string
+  ): Promise<{
+    entries: { fileId: string; fileName: string }[];
+    subfolders: string[];
+    requiresLogin: boolean;
+  }> => {
+    const embedUrl = `https://drive.google.com/embeddedfolderview?id=${encodeURIComponent(targetFolderId)}${rkParam}#list`;
+    const res = await fetch(embedUrl, {
+      headers: { 'User-Agent': BROWSER_USER_AGENT },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(7000),
+    });
+    const html = await res.text();
+    const requiresLogin =
+      res.status === 401 ||
+      res.status === 403 ||
+      res.url.includes('accounts.google.com') ||
+      /Sign in - Google Accounts|You need access|Perlu akses/i.test(html);
+    if (!res.ok && res.status !== 404) {
+      return { entries: [], subfolders: [], requiresLogin };
+    }
+    return {
+      entries: res.ok ? parseDriveEmbeddedFolderHtml(html) : [],
+      subfolders: res.ok ? parseDriveSubfoldersFromHtml(html) : [],
+      requiresLogin,
+    };
+  };
+
+  try {
+    const rootResult = await fetchEmbeddedFolder(folderId);
+    const entries = [...rootResult.entries];
+    let requiresLogin = rootResult.requiresLogin;
+
+    // Also scan 1 level of subfolders (up to 6) if the user shared a parent folder
+    if (rootResult.subfolders.length > 0 && entries.length < 150) {
+      const subResults = await Promise.all(
+        rootResult.subfolders.slice(0, 6).map((subId) =>
+          fetchEmbeddedFolder(subId).catch(() => ({
+            entries: [],
+            subfolders: [],
+            requiresLogin: false,
+          }))
+        )
+      );
+      for (const sr of subResults) {
+        for (const item of sr.entries) {
+          if (!entries.some((e) => e.fileId === item.fileId)) {
+            entries.push(item);
+          }
+        }
+      }
     }
 
-    const html = await res.text();
-    const entries = parseDriveEmbeddedFolderHtml(html);
+    // If embeddedfolderview returned nothing and input is NOT explicitly a /folders/ URL
+    // (for example https://drive.google.com/open?id=FILE_ID or raw FILE_ID), try treating it as a single file!
+    if (entries.length === 0 && !isExplicitFolderUrl && input) {
+      return getSingleDriveFileTrack(folderId, resourceKey);
+    }
+
+    // Fallback check on the main /drive/folders/ page if embeddedfolderview had 0 items
+    if (entries.length === 0 && folderId !== DEFAULT_DRIVE_FOLDER_ID) {
+      try {
+        const folderPageUrl = `https://drive.google.com/drive/folders/${encodeURIComponent(folderId)}${resourceKey ? `?resourcekey=${encodeURIComponent(resourceKey)}` : ''}`;
+        const pageRes = await fetch(folderPageUrl, {
+          headers: { 'User-Agent': BROWSER_USER_AGENT },
+          redirect: 'follow',
+          signal: AbortSignal.timeout(6500),
+        });
+        const pageHtml = await pageRes.text();
+        if (
+          pageRes.status === 401 ||
+          pageRes.status === 403 ||
+          pageRes.url.includes('accounts.google.com') ||
+          /Sign in - Google Accounts|You need access|Perlu akses/i.test(pageHtml)
+        ) {
+          requiresLogin = true;
+        }
+      } catch {
+        // Ignore secondary probe error
+      }
+    }
 
     if (entries.length === 0) {
       if (folderId === DEFAULT_DRIVE_FOLDER_ID) {
@@ -933,8 +1094,9 @@ async function getDriveFolderTracks(
         folderId,
         tracks: [],
         live: false,
-        error:
-          'Folder Google Drive kosong atau masih Private/Dibatasi. Pastikan akses diset ke "Siapa saja yang memiliki link" dan berisi file .mp3/.m4a.',
+        error: requiresLogin
+          ? 'Folder Google Drive ini masih Private / Dibatasi ("Restricted"). Ubah izin berbagi Drive ke "Siapa saja yang memiliki link", atau impor lagu Anda lewat tombol "MP3 HP".'
+          : 'Folder Google Drive kosong atau tidak ada file audio (.mp3/.m4a/.wav/.ogg/.flac) yang terbaca. Pastikan akses publik ("Siapa saja yang memiliki link") aktif.',
       };
     }
 
@@ -959,7 +1121,13 @@ async function getDriveFolderTracks(
       if (existing) {
         resolvedTracks.push(existing);
       } else {
-        const normalized = normalizeDriveTrack(entry.fileId, entry.fileName, i);
+        let normalized = normalizeDriveTrack(entry.fileId, entry.fileName, i);
+        if (rkParam) {
+          normalized = {
+            ...normalized,
+            audioUrl: `${normalized.audioUrl}${rkParam}`,
+          };
+        }
         newEntriesToEnrich.push(normalized);
         resolvedTracks.push(normalized);
       }
@@ -1011,7 +1179,7 @@ async function getDriveFolderTracks(
       tracks: cached?.tracks ?? [],
       live: false,
       error:
-        'Gagal membaca folder Google Drive. Pastikan link publik ("Siapa saja yang memiliki link").',
+        'Gagal terhubung ke folder Google Drive. Pastikan link valid dan diset publik ("Siapa saja yang memiliki link").',
     };
   }
 }
@@ -2024,6 +2192,7 @@ self.addEventListener('activate', (event) => {
       count: result.tracks.length,
       live: result.live,
       tracks: result.tracks,
+      error: result.error,
     });
   });
 

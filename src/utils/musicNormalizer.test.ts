@@ -1,15 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  extractDriveFileId,
   extractDriveFolderId,
+  extractDriveResourceKey,
   isSafeAudioProxyUrl,
   normalizeAudiusTrack,
   normalizeDriveTrack,
   normalizeHearthisTrack,
   parseDriveEmbeddedFolderHtml,
+  parseDriveSubfoldersFromHtml,
   parseYouTubeMusicSearchResponse,
   sanitizeDownloadFilename,
-} from './musicNormalizer';
+} from './musicNormalizer.ts';
 
 test('normalizeAudiusTrack maps full-length track metadata cleanly', () => {
   const track = normalizeAudiusTrack({
@@ -31,7 +34,7 @@ test('normalizeAudiusTrack maps full-length track metadata cleanly', () => {
   assert.ok(track.audioUrl.includes('api.audius.co/v1/tracks/8Y9Al/stream'));
 });
 
-test('extractDriveFolderId extracts folder ID from shared Google Drive URLs', () => {
+test('extractDriveFolderId, extractDriveFileId & extractDriveResourceKey handle all Drive URL formats', () => {
   assert.equal(
     extractDriveFolderId(
       'https://drive.google.com/drive/folders/159K3zTj7LG7EWAn4oukJwRxClm8-1XhF?usp=sharing'
@@ -42,20 +45,49 @@ test('extractDriveFolderId extracts folder ID from shared Google Drive URLs', ()
     extractDriveFolderId('159K3zTj7LG7EWAn4oukJwRxClm8-1XhF'),
     '159K3zTj7LG7EWAn4oukJwRxClm8-1XhF'
   );
+  assert.equal(
+    extractDriveFolderId('https://drive.google.com/open?id=1WXDFZVgemjM-cVXAmCPjwaxFh6mKsCU6'),
+    '1WXDFZVgemjM-cVXAmCPjwaxFh6mKsCU6'
+  );
+  assert.equal(
+    extractDriveFileId('https://drive.google.com/file/u/0/d/1WXDFZVgemjM-cVXAmCPjwaxFh6mKsCU6/view'),
+    '1WXDFZVgemjM-cVXAmCPjwaxFh6mKsCU6'
+  );
+  assert.equal(
+    extractDriveFileId('https://drive.google.com/uc?id=1WXDFZVgemjM-cVXAmCPjwaxFh6mKsCU6&export=download'),
+    '1WXDFZVgemjM-cVXAmCPjwaxFh6mKsCU6'
+  );
+  assert.equal(
+    extractDriveResourceKey('https://drive.google.com/drive/folders/159K3zTj7LG7EWAn4oukJwRxClm8-1XhF?resourcekey=0-abc123_XYZ'),
+    '0-abc123_XYZ'
+  );
 });
 
-test('parseDriveEmbeddedFolderHtml and normalizeDriveTrack extract full MP3 tracks', () => {
+test('parseDriveEmbeddedFolderHtml and parseDriveSubfoldersFromHtml extract audio files, icon-only audio & subfolders', () => {
   const sampleHtml = `
     <div class="flip-entry" id="entry-1WXDFZVgemjM-cVXAmCPjwaxFh6mKsCU6">
       <div class="flip-entry-title">TULUS - Hati-Hati di Jalan.mp3</div>
+    </div>
+    <div class="flip-entry" id="entry-1AbcDefGhiJkLmNoPqRsTuVwXyZ12345">
+      <img src="https://drive-thirdparty.googleusercontent.com/16/type/audio/mpeg" alt="Audio"/>
+      <div class="flip-entry-title">Lagu Tanpa Ekstensi</div>
+    </div>
+    <div class="flip-entry" id="entry-1SubFolderId1234567890abcdef">
+      <a href="https://drive.google.com/drive/folders/1SubFolderId1234567890abcdef?usp=drive_web">
+        <div class="flip-entry-title">Subfolder Pop</div>
+      </a>
     </div>
     <div class="flip-entry" id="entry-1sYmkrOlya44oQzrokpmQIHR_9YPsfzJZ">
       <div class="flip-entry-title">_Lagu Viral Nov 2026.md</div>
     </div>
   `;
   const entries = parseDriveEmbeddedFolderHtml(sampleHtml);
-  assert.equal(entries.length, 1);
+  assert.equal(entries.length, 2);
   assert.equal(entries[0].fileId, '1WXDFZVgemjM-cVXAmCPjwaxFh6mKsCU6');
+  assert.equal(entries[1].fileId, '1AbcDefGhiJkLmNoPqRsTuVwXyZ12345');
+
+  const subfolders = parseDriveSubfoldersFromHtml(sampleHtml);
+  assert.deepEqual(subfolders, ['1SubFolderId1234567890abcdef']);
 
   const track = normalizeDriveTrack(entries[0].fileId, entries[0].fileName);
   assert.equal(track.id, 'gdrive-1WXDFZVgemjM-cVXAmCPjwaxFh6mKsCU6');

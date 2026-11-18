@@ -28,6 +28,7 @@ export interface Track {
   coverUrl: string;
   audioUrl: string;
   driveFileId?: string;
+  drivePreviewOnly?: boolean;
   youtubeVideoId?: string;
   source?: TrackSource;
   isPreview?: boolean;

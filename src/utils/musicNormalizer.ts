@@ -286,8 +286,16 @@ export function parseYouTubeMusicSearchResponse(
 export function extractDriveFileId(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
-  const fileMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]{15,})/);
+  const fileMatch = trimmed.match(/\/file\/(?:u\/\d+\/)?d\/([a-zA-Z0-9_-]{15,})/);
   if (fileMatch?.[1]) return fileMatch[1];
+  if (
+    /drive\.google\.com\/uc\b|drive\.usercontent\.google\.com\/download\b/i.test(
+      trimmed
+    )
+  ) {
+    const idMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]{15,})/);
+    if (idMatch?.[1]) return idMatch[1];
+  }
   return null;
 }
 
@@ -300,6 +308,16 @@ export function extractDriveFolderId(input: string): string | null {
   if (idParamMatch?.[1]) return idParamMatch[1];
   if (/^[a-zA-Z0-9_-]{15,60}$/.test(trimmed)) return trimmed;
   return null;
+}
+
+export function extractDriveResourceKey(input: string): string | undefined {
+  const match = input.match(/[?&]resourcekey=([^&#\s]+)/i);
+  if (!match?.[1]) return undefined;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
 }
 
 export interface GitHubRepoTarget {
@@ -402,18 +420,41 @@ export function parseDriveEmbeddedFolderHtml(
   html: string
 ): { fileId: string; fileName: string }[] {
   const results: { fileId: string; fileName: string }[] = [];
+  const seen = new Set<string>();
   const regex =
-    /id="entry-([^"]+)"[\s\S]*?<div class="flip-entry-title">([^<]+)<\/div>/g;
+    /id="entry-([^"]+)"([\s\S]*?)<div class="flip-entry-title">([^<]+)<\/div>/g;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(html)) !== null) {
     const fileId = match[1]?.trim();
-    const rawName = decodeHtmlEntities(match[2]?.trim() || '');
-    if (!fileId || !rawName) continue;
-    if (!/\.(mp3|m4a|wav|ogg|flac|aac|opus|webm)$/i.test(rawName)) continue;
+    const block = match[2] || '';
+    const rawName = decodeHtmlEntities(match[3]?.trim() || '');
+    if (!fileId || !rawName || seen.has(fileId)) continue;
+    // Skip subfolder entries (handled separately)
+    if (block.includes('/drive/folders/')) continue;
+
+    const hasAudioExt = /\.(mp3|m4a|wav|ogg|flac|aac|opus|webm|3gp|amr)$/i.test(rawName);
+    const hasAudioIcon = /type\/audio\/|alt="Audio"/i.test(block);
+    if (!hasAudioExt && !hasAudioIcon) continue;
     if (rawName === 'audio1645293506.m4a') continue;
+    seen.add(fileId);
     results.push({ fileId, fileName: rawName });
   }
   return results;
+}
+
+export function parseDriveSubfoldersFromHtml(html: string): string[] {
+  const folders: string[] = [];
+  const seen = new Set<string>();
+  const regex = /href="https:\/\/drive\.google\.com\/drive\/folders\/([a-zA-Z0-9_-]{15,})[^"]*"/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(html)) !== null) {
+    const id = match[1]?.trim();
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      folders.push(id);
+    }
+  }
+  return folders;
 }
 
 export function parseDriveAudioFilename(fileName: string): {
@@ -421,7 +462,7 @@ export function parseDriveAudioFilename(fileName: string): {
   artist: string;
   genre: string;
 } {
-  let base = fileName.replace(/\.(mp3|m4a|wav|ogg|flac|aac|opus|webm)$/i, '').trim();
+  let base = fileName.replace(/\.(mp3|m4a|wav|ogg|flac|aac|opus|webm|3gp|amr)$/i, '').trim();
   base = base.replace(/\s*\(\d+\)\s*$/, '').trim();
 
   if (

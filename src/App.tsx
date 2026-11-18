@@ -230,6 +230,7 @@ export default function App() {
   const [isLoadingApi, setIsLoadingApi] = useState(false);
   const [isLiveApi, setIsLiveApi] = useState(false);
   const [iframeAuthBlocked, setIframeAuthBlocked] = useState(false);
+  const [driveError, setDriveError] = useState<string | null>(null);
   const [jamendoConfigured, setJamendoConfigured] = useState(true);
   const [jamendoError, setJamendoError] = useState<string | null>(null);
 
@@ -404,12 +405,24 @@ export default function App() {
           setJamendoConfigured(data.jamendoConfigured);
         }
         setJamendoError(data.jamendoError || null);
+        setDriveError(data.driveError || null);
         if (forceRefresh && data.driveError) {
           showToast(data.driveError, 'warning');
         }
-        if (genre === 'jamendo' || genre === 'audius' || genre === 'radio') {
+        if (
+          genre === 'jamendo' ||
+          genre === 'audius' ||
+          genre === 'radio' ||
+          genre === 'drive'
+        ) {
           setOnlineFeedTracks(Array.isArray(data.tracks) ? data.tracks : []);
           setIsLiveApi(Boolean(data.live));
+          if (forceRefresh && !data.driveError && genre === 'drive') {
+            showToast(
+              `Berhasil memuat ${data.tracks?.length ?? 0} lagu Google Drive`,
+              'success'
+            );
+          }
         } else if (Array.isArray(data.tracks) && data.tracks.length > 0) {
           setOnlineFeedTracks(data.tracks);
           setIsLiveApi(Boolean(data.live));
@@ -439,6 +452,7 @@ export default function App() {
     (folderUrl: string) => {
       setDriveFolderUrl(folderUrl);
       setActiveGenre('drive');
+      setDriveError(null);
       void fetchDiscoverFeed('drive', folderUrl, true);
     },
     [fetchDiscoverFeed]
@@ -464,7 +478,7 @@ export default function App() {
       try {
         const res = await fetch(
           `/api/music/search?q=${encodeURIComponent(trimmed)}&folder=${encodeURIComponent(driveFolderUrl)}`,
-          { signal: AbortSignal.timeout(7000) }
+          { credentials: 'include', signal: AbortSignal.timeout(7000) }
         );
         if (!res.ok) throw new Error('Search request failed');
         const data = (await res.json()) as { tracks?: Track[] };
@@ -652,7 +666,11 @@ export default function App() {
       if (existingPromise) {
         return existingPromise;
       }
-      if (track.source === 'radio' || track.id.startsWith('radio-')) {
+      if (
+        track.drivePreviewOnly ||
+        track.source === 'radio' ||
+        track.id.startsWith('radio-')
+      ) {
         return null;
       }
       if (
@@ -931,6 +949,20 @@ export default function App() {
       const audio = audioRef.current;
       if (!audio) return;
 
+      if (track.drivePreviewOnly && track.driveFileId) {
+        playRequestIdRef.current += 1;
+        isSwitchingTrackRef.current = false;
+        audio.pause();
+        setIsPlaying(false);
+        setFullPlayerTab('player');
+        setIsFullPlayerOpen(true);
+        showToast(
+          'Membuka pemutar sesi browser Google Drive untuk file Private ini.',
+          'info'
+        );
+        return;
+      }
+
       activeTrackRef.current = track;
       const reqId = ++playRequestIdRef.current;
       const cachedBlobUrl = offlineBlobUrlsRef.current[track.id];
@@ -1057,6 +1089,14 @@ export default function App() {
 
       const audio = audioRef.current;
       if (!audio) return;
+
+      if (track.drivePreviewOnly && track.driveFileId) {
+        setCurrentTrackId(track.id);
+        setCurrentTime(0);
+        setDuration(track.durationSec);
+        triggerSyncPlayback(track);
+        return;
+      }
 
       if (currentTrackId === track.id) {
         if (isPlaying) {
@@ -1566,6 +1606,13 @@ export default function App() {
         showToast('Switch to Online Mode to download tracks', 'warning');
         return;
       }
+      if (track.drivePreviewOnly) {
+        showToast(
+          'File Drive ini masih Private. Ubah berbagi ke "Siapa saja yang memiliki link" agar bisa disimpan offline.',
+          'warning'
+        );
+        return;
+      }
       if (downloadedIds.has(track.id) || downloadProgressMap[track.id] !== undefined) {
         return;
       }
@@ -1648,6 +1695,13 @@ export default function App() {
   // Direct device file download (.mp3)
   const handleSaveFileToDevice = useCallback(
     async (track: Track) => {
+      if (track.drivePreviewOnly) {
+        showToast(
+          'File Drive ini masih Private. Ubah izin berbagi Drive ke publik untuk mengunduh MP3.',
+          'warning'
+        );
+        return;
+      }
       try {
         const filename = sanitizeDownloadFilename(track.title, track.artist);
         const offlineRec = await getOfflineTrackRecord(track.id);
@@ -2015,6 +2069,10 @@ export default function App() {
                   onImportLocalFiles={(files) => void handleImportLocalFiles(files)}
                   onPrefetchTrack={(track) => void prefetchTrackAudio(track)}
                   iframeAuthBlocked={iframeAuthBlocked}
+                  driveError={driveError}
+                  onResetDriveFolder={() =>
+                    handleSyncDriveFolder(DEFAULT_DRIVE_FOLDER_URL)
+                  }
                   jamendoConfigured={jamendoConfigured}
                   jamendoError={jamendoError}
                 />

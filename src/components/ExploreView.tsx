@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowDownToLine,
   ExternalLink,
   FolderSync,
@@ -63,8 +64,19 @@ interface ExploreViewProps {
   onImportLocalFiles?: (files: FileList) => void;
   onPrefetchTrack?: (track: Track) => void;
   iframeAuthBlocked?: boolean;
+  driveError?: string | null;
+  onResetDriveFolder?: () => void;
   jamendoConfigured?: boolean;
   jamendoError?: string | null;
+}
+
+function getDriveBrowserOpenUrl(rawUrl: string): string {
+  const trimmed = rawUrl.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^[a-zA-Z0-9_-]{15,60}$/.test(trimmed)) {
+    return `https://drive.google.com/drive/folders/${encodeURIComponent(trimmed)}`;
+  }
+  return 'https://drive.google.com';
 }
 
 export const ExploreView: React.FC<ExploreViewProps> = ({
@@ -77,7 +89,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
   driveFolderUrl,
   onSyncDriveFolder,
   isLoadingApi,
-  isLiveApi,
+  isLiveApi: _isLiveApi,
   onRefreshFeed,
   isOfflineMode,
   currentTrackId,
@@ -97,12 +109,18 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
   onImportLocalFiles,
   onPrefetchTrack,
   iframeAuthBlocked = false,
+  driveError = null,
+  onResetDriveFolder,
   jamendoConfigured = true,
   jamendoError = null,
 }) => {
   const [showDriveInput, setShowDriveInput] = useState(false);
   const [customDriveInput, setCustomDriveInput] = useState(driveFolderUrl);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setCustomDriveInput(driveFolderUrl);
+  }, [driveFolderUrl]);
 
   const showFeaturedSpotlight =
     !isOfflineMode &&
@@ -242,16 +260,28 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
           </div>
 
           {showDriveInput && (
-            <form onSubmit={handleDriveSubmit} className="space-y-1.5 pt-1">
+            <form onSubmit={handleDriveSubmit} className="space-y-2 pt-1">
               <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={customDriveInput}
-                  onChange={(e) => setCustomDriveInput(e.target.value)}
-                  placeholder="Link Drive (folder/file) atau Repo GitHub publik..."
-                  aria-label="Google Drive or GitHub repository URL"
-                  className="flex-1 min-w-0 h-9 px-3 rounded-lg bg-[#0B0F17] border border-[#1E293B] text-xs text-[#F8FAFC] placeholder:text-[#94A3B8]/60 focus:outline-none focus:border-[#10B981]"
-                />
+                <div className="relative flex-1 min-w-0">
+                  <input
+                    type="text"
+                    value={customDriveInput}
+                    onChange={(e) => setCustomDriveInput(e.target.value)}
+                    placeholder="Tempel link Drive (folder/file/open?id=) atau GitHub..."
+                    aria-label="Google Drive or GitHub repository URL"
+                    className="w-full h-9 pl-3 pr-8 rounded-lg bg-[#0B0F17] border border-[#1E293B] text-xs text-[#F8FAFC] placeholder:text-[#94A3B8]/60 focus:outline-none focus:border-[#10B981]"
+                  />
+                  {customDriveInput && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomDriveInput('')}
+                      aria-label="Hapus link"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-[#94A3B8] hover:text-[#F8FAFC]"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
                 <button
                   type="submit"
                   className="h-9 px-3 rounded-lg bg-[#10B981] hover:bg-[#059669] text-[#0B0F17] text-xs font-semibold shrink-0"
@@ -259,10 +289,60 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                   Muat Link
                 </button>
               </div>
-              <p className="text-[10px] text-[#94A3B8]">
-                Mendukung link Folder/File Google Drive publik atau link Repo GitHub (https://github.com/user/repo).
+              <p className="text-[10px] text-[#94A3B8] leading-relaxed">
+                Mendukung link Folder, File tunggal (<code className="text-[#CBD5E1]">/file/d/</code>, <code className="text-[#CBD5E1]">/open?id=</code>), ID Drive, atau Repo GitHub publik. File Private juga bisa dipilih langsung lewat tombol <strong className="text-[#10B981]">MP3 HP</strong>.
               </p>
             </form>
+          )}
+
+          {driveError && (
+            <div
+              role="alert"
+              className="rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/35 p-3 space-y-2.5"
+            >
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={15} className="text-[#FBBF24] shrink-0 mt-0.5" />
+                <div className="space-y-1 min-w-0">
+                  <p className="text-xs font-semibold text-[#FDE68A]">
+                    Akses Google Drive Terbatas / Gagal Dimuat
+                  </p>
+                  <p className="text-[11px] text-[#FDE68A]/90 leading-relaxed">
+                    {driveError}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href={getDriveBrowserOpenUrl(driveFolderUrl)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-[#0B0F17] text-[11px] font-semibold transition-colors"
+                >
+                  <ExternalLink size={12} />
+                  <span>Atur Berbagi di Drive</span>
+                </a>
+                {onImportLocalFiles && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#10B981] hover:bg-[#059669] text-[#0B0F17] text-[11px] font-semibold transition-colors"
+                  >
+                    <Upload size={12} />
+                    <span>Pilih File dari Drive / HP</span>
+                  </button>
+                )}
+                {onResetDriveFolder && (
+                  <button
+                    type="button"
+                    onClick={onResetDriveFolder}
+                    className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#1E293B] hover:bg-[#334155] text-[#F8FAFC] text-[11px] font-medium transition-colors"
+                  >
+                    <RefreshCw size={12} />
+                    <span>168 Lagu Drive Default</span>
+                  </button>
+                )}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -480,6 +560,39 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                 >
                   Muat Ulang Jamendo
                 </button>
+              </>
+            ) : activeGenre === 'drive' && !searchQuery.trim() ? (
+              <>
+                <FolderSync size={28} className="mx-auto text-[#F59E0B]" />
+                <p className="text-sm font-medium text-[#F8FAFC]">
+                  Folder / Link Drive Tidak Bisa Diakses
+                </p>
+                <p className="text-xs text-[#94A3B8] max-w-xs mx-auto leading-relaxed">
+                  {driveError ||
+                    'Pastikan folder Google Drive memiliki izin "Siapa saja yang memiliki link" (Anyone with the link) dan berisi file audio (.mp3/.m4a/.wav/.ogg/.flac).'}
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                  {onImportLocalFiles && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-[#10B981] hover:bg-[#059669] text-[#0B0F17] text-xs font-semibold transition-colors"
+                    >
+                      <Upload size={14} />
+                      <span>Pilih File dari Drive / HP</span>
+                    </button>
+                  )}
+                  {onResetDriveFolder && (
+                    <button
+                      type="button"
+                      onClick={onResetDriveFolder}
+                      className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-[#F8FAFC] text-xs font-medium transition-colors"
+                    >
+                      <RefreshCw size={14} />
+                      <span>Muat Drive Default</span>
+                    </button>
+                  )}
+                </div>
               </>
             ) : (
               <>
