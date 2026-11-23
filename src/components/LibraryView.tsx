@@ -94,14 +94,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
   return (
     <div className="space-y-5">
-      {/* Local Storage Usage Bar */}
+      {/* Local Storage Usage Bar (Dynamic Glass Card) */}
       <section
         aria-label="Offline storage usage"
-        className="rounded-2xl bg-[#131A26] border border-[#1E293B] p-4 space-y-3"
+        className="rounded-2xl dynamic-glass-card p-4 space-y-3"
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#1E293B] text-[#10B981]">
+            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#10B981]/15 border border-[#10B981]/25 text-[#10B981]">
               <HardDrive size={18} />
             </div>
             <div>
@@ -124,7 +124,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         </div>
 
         <div
-          className="h-2 w-full rounded-full bg-[#0B0F17] overflow-hidden"
+          className="h-2 w-full rounded-full bg-white/[0.08] overflow-hidden"
           role="progressbar"
           aria-label="Local storage used"
           aria-valuemin={0}
@@ -137,16 +137,16 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               width: `${Math.max(storageStats.usedMb > 0 ? 2 : 0, storageStats.usagePercent)}%`,
             }}
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="h-full rounded-full bg-[#10B981]"
+            className="h-full rounded-full bg-gradient-to-r from-[#10B981] to-[#34D399] shadow-[0_0_8px_rgba(16,185,129,0.5)]"
           />
         </div>
       </section>
 
-      {/* Filter Tabs */}
+      {/* Filter Tabs (Dynamic Glass Segmented Control) */}
       <div
         role="tablist"
         aria-label="Library sections"
-        className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[#131A26] border border-[#1E293B]"
+        className="grid grid-cols-3 gap-1 p-1 rounded-2xl dynamic-glass-card"
       >
         {SUB_TABS.map((tab) => {
           const isActive = activeSubTab === tab.id;
@@ -160,7 +160,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 onSelectSubTab(tab.id);
                 setSelectedPlaylistId(null);
               }}
-              className={`relative h-10 px-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[#10B981] ${
+              className={`relative h-10 px-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[#10B981] ${
                 isActive ? 'text-[#10B981]' : 'text-[#94A3B8] hover:text-[#F8FAFC]'
               }`}
             >
@@ -168,7 +168,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <motion.span
                   layoutId="library-subtab-pill"
                   transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-                  className="absolute inset-0 rounded-lg bg-[#1E293B] shadow-sm"
+                  className="absolute inset-0 rounded-xl bg-white/[0.08] border border-white/[0.12] shadow-sm"
                 />
               )}
               <span className="relative z-10">{tab.label}</span>
@@ -181,7 +181,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       {activeSubTab === 'downloads' && (
         <section aria-label="All downloaded tracks" className="space-y-2">
           {downloadedTracks.length === 0 ? (
-            <div className="rounded-2xl bg-[#131A26] border border-[#1E293B] p-8 text-center space-y-2">
+            <div className="rounded-2xl dynamic-glass-card p-8 text-center space-y-2">
               <HardDrive size={28} className="mx-auto text-[#94A3B8]" />
               <p className="text-sm font-medium text-[#F8FAFC]">No downloaded tracks</p>
               <p className="text-xs text-[#94A3B8]">

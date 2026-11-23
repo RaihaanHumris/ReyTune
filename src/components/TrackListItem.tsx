@@ -11,7 +11,7 @@ import { motion } from 'motion/react';
 import { AudioQuality, Track } from '../types/music';
 import { formatTime, getEffectiveTrackSizeMb } from '../utils/playerLogic';
 import { CircularDownloadButton } from './CircularDownloadButton';
-import { CoverArtwork } from './CoverArtwork';
+import { CoverArtwork, TrackPhotoBackground } from './CoverArtwork';
 import { EqualizerIcon } from './EqualizerIcon';
 
 interface TrackListItemProps {
@@ -95,22 +95,33 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
       data-testid={`track-item-${track.id}`}
-      className={`group relative flex items-center justify-between gap-1.5 px-2.5 py-2 min-h-[64px] rounded-xl transition-colors duration-150 ${
+      className={`group relative flex items-center justify-between gap-1.5 px-2.5 py-2 min-h-[64px] rounded-xl transition-all duration-150 ${
         isActive
-          ? 'bg-[#131A26] ring-1 ring-[#10B981]/40 shadow-sm shadow-[#10B981]/5'
-          : 'hover:bg-[#131A26]/80'
+          ? 'dynamic-glass-row-active'
+          : 'border border-transparent hover:bg-white/[0.05] hover:border-white/[0.08]'
       } ${isDisabledInOffline ? 'opacity-50' : ''}`}
     >
+      {/* When this track is active/playing, its cover photo becomes the row background behind dynamic glass */}
+      {isActive && (
+        <TrackPhotoBackground
+          coverUrl={track.coverUrl}
+          trackId={track.id}
+          title={track.title}
+          isPlaying={isPlaying}
+          variant="row"
+        />
+      )}
+
       {/* Primary clickable track row */}
       <button
         type="button"
         onPointerDown={() => onPrefetch?.(track)}
         onClick={() => onPlay(track)}
         aria-label={`Play ${track.title} by ${track.artist}`}
-        className="flex flex-1 min-w-0 items-center gap-3 text-left py-0.5 active:scale-[0.99] transition-transform focus-visible:outline-2 focus-visible:outline-[#10B981] rounded-lg"
+        className="relative z-10 flex flex-1 min-w-0 items-center gap-3 text-left py-0.5 active:scale-[0.99] transition-transform focus-visible:outline-2 focus-visible:outline-[#10B981] rounded-lg"
       >
         {/* 48x48px Cover Art + Equalizer Overlay */}
-        <div className="relative w-12 h-12 shrink-0 rounded-lg overflow-hidden">
+        <div className="relative w-12 h-12 shrink-0 rounded-lg overflow-hidden ring-1 ring-white/10">
           <CoverArtwork
             src={track.coverUrl}
             alt={`${track.album} cover art`}
@@ -118,7 +129,7 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
             iconSize={18}
           />
           {isActive && (
-            <div className="absolute inset-0 bg-[#0B0F17]/65 flex items-center justify-center backdrop-blur-[1px]">
+            <div className="absolute inset-0 bg-[#0B0F17]/65 flex items-center justify-center backdrop-blur-[2px]">
               <EqualizerIcon isPlaying={isPlaying} />
             </div>
           )}
@@ -172,7 +183,7 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
       </button>
 
       {/* Right Action Controls */}
-      <div className="flex items-center shrink-0" ref={menuRef}>
+      <div className="relative z-10 flex items-center shrink-0" ref={menuRef}>
         {showDirectDelete && isDownloaded ? (
           <button
             type="button"
@@ -200,7 +211,7 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
           onClick={() => setMenuOpen((prev) => !prev)}
           aria-label={`More options for ${track.title}`}
           aria-expanded={menuOpen}
-          className="flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E293B] transition-colors focus-visible:outline-2 focus-visible:outline-[#10B981]"
+          className="flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-white/[0.08] transition-colors focus-visible:outline-2 focus-visible:outline-[#10B981]"
         >
           <MoreVertical size={18} />
         </button>
@@ -208,7 +219,7 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
         {menuOpen && (
           <div
             role="menu"
-            className="absolute right-2 top-14 z-30 w-56 rounded-xl bg-[#1E293B] border border-[#334155]/60 shadow-xl py-1.5 text-sm"
+            className="absolute right-2 top-14 z-30 w-56 rounded-2xl dynamic-glass-elevated py-1.5 text-sm"
           >
             <button
               type="button"
@@ -217,7 +228,7 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
                 onToggleLike(track.id);
                 setMenuOpen(false);
               }}
-              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left text-[#F8FAFC] hover:bg-[#131A26] transition-colors"
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left text-[#F8FAFC] hover:bg-white/[0.08] transition-colors"
             >
               <Heart
                 size={16}
@@ -233,7 +244,7 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
                 onAddToPlaylist(track);
                 setMenuOpen(false);
               }}
-              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left text-[#F8FAFC] hover:bg-[#131A26] transition-colors"
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left text-[#F8FAFC] hover:bg-white/[0.08] transition-colors"
             >
               <ListPlus size={16} className="text-[#94A3B8]" />
               <span>Add to Playlist</span>
@@ -247,7 +258,7 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
                 onSaveFileToDevice(track);
                 setMenuOpen(false);
               }}
-              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left text-[#F8FAFC] hover:bg-[#131A26] transition-colors disabled:opacity-40"
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left text-[#F8FAFC] hover:bg-white/[0.08] transition-colors disabled:opacity-40"
             >
               <FileDown size={16} className="text-[#94A3B8]" />
               <span>Save Audio File (.mp3)</span>
@@ -275,7 +286,7 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
                   onDownload(track);
                   setMenuOpen(false);
                 }}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left text-[#10B981] hover:bg-[#131A26] transition-colors disabled:opacity-40"
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left text-[#10B981] hover:bg-white/[0.08] transition-colors disabled:opacity-40"
               >
                 <CheckCircle2 size={16} />
                 <span>Save for Offline</span>

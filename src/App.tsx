@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, Download, Wifi, WifiOff } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { BottomNav } from './components/BottomNav';
+import { TrackPhotoBackground } from './components/CoverArtwork';
 import { ExploreView } from './components/ExploreView';
 import { FullScreenPlayer } from './components/FullScreenPlayer';
 import { LibraryView } from './components/LibraryView';
@@ -1930,15 +1931,24 @@ export default function App() {
       {/* Hidden HTML5 Audio Element configured for background & lock-screen playback */}
       <audio ref={audioRef} preload="auto" playsInline />
 
-      {/* Centered Mobile-First Shell */}
-      <div className="max-w-md mx-auto min-h-screen relative flex flex-col bg-[#0B0F17] sm:border-x sm:border-[#1E293B]/60">
-        {/* Top Bar with ReyTune Branding, Install PWA Trigger & Online/Offline Switch */}
-        <header className="sticky top-0 z-30 bg-[#0B0F17]/95 backdrop-blur-md border-b border-[#1E293B]/80 px-4 pt-[max(0.35rem,env(safe-area-inset-top,0px))] pb-1.5 min-h-[60px] flex items-center justify-between gap-2">
+      {/* Centered Mobile-First Shell with Live Playing Song Photo Background & Dynamic Glass */}
+      <div className="max-w-md mx-auto min-h-screen relative flex flex-col bg-[#0B0F17] sm:border-x sm:border-white/[0.1] overflow-x-clip">
+        {/* Live Song Cover Photo as the App Background behind Dynamic Glass Surfaces */}
+        <TrackPhotoBackground
+          coverUrl={currentTrack?.coverUrl ?? featuredTrack?.coverUrl}
+          trackId={currentTrack?.id ?? featuredTrack?.id}
+          title={currentTrack?.title ?? featuredTrack?.title}
+          isPlaying={isPlaying}
+          variant="shell"
+        />
+
+        {/* Top Bar with ReyTune Branding, Install PWA Trigger & Online/Offline Switch (Dynamic Glass Header) */}
+        <header className="sticky top-0 z-30 dynamic-glass-header px-4 pt-[max(0.35rem,env(safe-area-inset-top,0px))] pb-1.5 min-h-[60px] flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <img
               src="/icon.svg"
               alt="ReyTune logo"
-              className="w-7 h-7 rounded-lg shrink-0"
+              className="w-7 h-7 rounded-lg shrink-0 ring-1 ring-white/15 shadow-sm"
             />
             <div className="min-w-0">
               <h1 className="text-[18px] font-bold tracking-tight text-[#F8FAFC] leading-none truncate">
@@ -1958,7 +1968,7 @@ export default function App() {
                 aria-label="Install ReyTune PWA"
                 title="Install ReyTune PWA"
                 data-testid="header-install-pwa"
-                className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#131A26] hover:bg-[#1E293B] border border-[#1E293B] text-[#10B981] transition-colors focus-visible:outline-2 focus-visible:outline-[#10B981]"
+                className="inline-flex items-center justify-center w-9 h-9 rounded-xl dynamic-glass-button text-[#10B981] transition-colors focus-visible:outline-2 focus-visible:outline-[#10B981]"
               >
                 <Download size={16} />
               </button>
@@ -1976,10 +1986,10 @@ export default function App() {
               }
               data-testid="offline-mode-switch"
               onClick={() => setIsOfflineMode((prev) => !prev)}
-              className={`inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg border text-xs font-medium transition-colors whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[#10B981] ${
+              className={`inline-flex items-center gap-1.5 h-9 px-2.5 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[#10B981] ${
                 isOfflineMode
-                  ? 'bg-[#1E293B] border-[#10B981]/50 text-[#10B981]'
-                  : 'bg-[#131A26] border-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC]'
+                  ? 'bg-[#10B981]/15 border border-[#10B981]/45 text-[#10B981] backdrop-blur-md'
+                  : 'dynamic-glass-button text-[#CBD5E1] hover:text-[#F8FAFC]'
               }`}
             >
               {isOfflineMode ? (
@@ -1991,7 +2001,7 @@ export default function App() {
               <span
                 aria-hidden="true"
                 className={`w-6 h-3.5 rounded-full p-0.5 transition-colors flex items-center ${
-                  isOfflineMode ? 'bg-[#10B981]' : 'bg-[#334155]'
+                  isOfflineMode ? 'bg-[#10B981]' : 'bg-white/20'
                 }`}
               >
                 <span
@@ -2005,7 +2015,7 @@ export default function App() {
         </header>
 
         {/* Main Scrollable Content Area */}
-        <main className="flex-1 px-4 pt-4 pb-56">
+        <main className="relative z-10 flex-1 px-4 pt-4 pb-56">
           <AnimatePresence>
             {isOfflineMode && (
               <motion.div
@@ -2016,7 +2026,7 @@ export default function App() {
                 transition={{ duration: 0.2 }}
                 role="status"
                 data-testid="offline-banner"
-                className="mb-4 flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-[#1E293B] text-[#10B981] text-xs font-medium border border-[#10B981]/25"
+                className="mb-4 flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl dynamic-glass-card text-[#10B981] text-xs font-medium border-[#10B981]/30"
               >
                 <WifiOff size={14} className="shrink-0" />
                 <span>Mode Offline Aktif • Menampilkan lagu tersimpan</span>
@@ -2153,7 +2163,7 @@ export default function App() {
           </AnimatePresence>
         </main>
 
-        {/* Floating Toast Feedback anchored above MiniPlayer */}
+        {/* Floating Toast Feedback anchored above MiniPlayer (Dynamic Glass Capsule) */}
         <AnimatePresence>
           {toast && (
             <motion.div
@@ -2170,7 +2180,7 @@ export default function App() {
                   : 'bottom-[calc(102px+env(safe-area-inset-bottom,0px))] sm:bottom-[90px]'
               }`}
             >
-              <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#1E293B]/95 backdrop-blur-md border border-[#334155]/80 shadow-xl text-xs font-medium text-[#F8FAFC]">
+              <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl dynamic-glass-elevated text-xs font-medium text-[#F8FAFC]">
                 <CheckCircle2
                   size={15}
                   className={

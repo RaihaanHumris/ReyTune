@@ -40,10 +40,10 @@ export const PlaylistPickerModal: React.FC<PlaylistPickerModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label={`Add ${track.title} to playlist`}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-md"
     >
-      <div className="w-full max-w-md rounded-t-3xl bg-[#131A26] border-t border-[#1E293B] p-5 pb-7 shadow-2xl">
-        <div className="w-10 h-1 bg-[#334155] rounded-full mx-auto mb-4" aria-hidden="true" />
+      <div className="w-full max-w-md rounded-t-3xl dynamic-glass-elevated p-5 pb-7">
+        <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4" aria-hidden="true" />
 
         <div className="flex items-center justify-between gap-3 mb-4">
           <div className="min-w-0">
@@ -54,7 +54,7 @@ export const PlaylistPickerModal: React.FC<PlaylistPickerModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close playlist picker"
-            className="flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E293B]"
+            className="flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-white/[0.08]"
           >
             <X size={20} />
           </button>

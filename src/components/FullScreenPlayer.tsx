@@ -26,7 +26,7 @@ import type { SyncedLyricLine } from '../utils/musicNormalizer';
 import { getOfflineTrackRecord } from '../utils/indexedDb';
 import { formatTime } from '../utils/playerLogic';
 import { CircularDownloadButton } from './CircularDownloadButton';
-import { CoverArtwork } from './CoverArtwork';
+import { CoverArtwork, TrackPhotoBackground } from './CoverArtwork';
 import { EqualizerIcon } from './EqualizerIcon';
 
 interface LyricsResponse {
@@ -349,27 +349,36 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-50 flex justify-center bg-black/75 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex justify-center bg-black/75 backdrop-blur-md"
         >
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-full max-w-md h-full bg-gradient-to-b from-[#131A26] via-[#0B0F17] to-[#0B0F17] flex flex-col justify-between px-6 pt-[max(1rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-[max(2.75rem,calc(env(safe-area-inset-bottom,0px)+2.25rem))] overflow-y-auto"
+            className="relative w-full max-w-md h-full bg-[#0B0F17] flex flex-col justify-between px-6 pt-[max(1rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-[max(2.75rem,calc(env(safe-area-inset-bottom,0px)+2.25rem))] overflow-y-auto overflow-x-hidden"
           >
+            {/* Live Song Photo Background with Dynamic Glass Scrim */}
+            <TrackPhotoBackground
+              coverUrl={track.coverUrl}
+              trackId={track.id}
+              title={track.title}
+              isPlaying={isPlaying}
+              variant="fullscreen"
+            />
+
             {/* Header */}
-            <header className="flex items-center justify-between gap-2 shrink-0">
+            <header className="relative z-10 flex items-center justify-between gap-2 shrink-0">
               <button
                 type="button"
                 onClick={onClose}
                 aria-label="Minimize player"
-                className="flex items-center justify-center min-h-[44px] min-w-[44px] -ml-2 rounded-full text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E293B] transition-colors focus-visible:outline-2 focus-visible:outline-[#10B981]"
+                className="flex items-center justify-center min-h-[44px] min-w-[44px] -ml-1 rounded-full dynamic-glass-button text-[#CBD5E1] hover:text-[#F8FAFC] transition-colors focus-visible:outline-2 focus-visible:outline-[#10B981]"
               >
-                <ChevronDown size={24} />
+                <ChevronDown size={22} />
               </button>
 
-              <div className="text-center min-w-0 px-2">
+              <div className="text-center min-w-0 px-3 py-1 rounded-2xl dynamic-glass-card">
                 <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#10B981]">
                   {isPlaying && (
                     <EqualizerIcon isPlaying={true} className="h-3 w-3" />
@@ -380,7 +389,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                       : `Sumber: ${sourceBadge}`}
                   </span>
                 </div>
-                <p className="text-[12px] text-[#94A3B8] truncate">
+                <p className="text-[12px] text-[#E2E8F0] truncate">
                   {track.album}
                 </p>
               </div>
@@ -389,22 +398,22 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                 type="button"
                 onClick={() => onAddToPlaylist(track)}
                 aria-label={`Add ${track.title} to playlist`}
-                className="flex items-center justify-center min-h-[44px] min-w-[44px] -mr-2 rounded-full text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E293B] transition-colors focus-visible:outline-2 focus-visible:outline-[#10B981]"
+                className="flex items-center justify-center min-h-[44px] min-w-[44px] -mr-1 rounded-full dynamic-glass-button text-[#CBD5E1] hover:text-[#F8FAFC] transition-colors focus-visible:outline-2 focus-visible:outline-[#10B981]"
               >
-                <ListPlus size={20} />
+                <ListPlus size={19} />
               </button>
             </header>
 
-            {/* View Switcher: Pemutar vs Lirik Lagu */}
-            <div className="flex items-center justify-center gap-1.5 mt-2 shrink-0">
-              <div className="inline-flex p-1 rounded-xl bg-[#131A26] border border-[#1E293B]">
+            {/* View Switcher: Pemutar vs Lirik Lagu (Dynamic Glass Segmented Pill) */}
+            <div className="relative z-10 flex items-center justify-center gap-1.5 mt-2 shrink-0">
+              <div className="inline-flex p-1 rounded-2xl dynamic-glass-card">
                 <button
                   type="button"
                   onClick={() => setActiveTab('player')}
-                  className={`inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-xs font-semibold transition-colors ${
+                  className={`relative inline-flex items-center gap-1.5 h-8 px-3.5 rounded-xl text-xs font-semibold transition-colors ${
                     activeTab === 'player'
-                      ? 'bg-[#10B981] text-[#0B0F17]'
-                      : 'text-[#94A3B8] hover:text-[#F8FAFC]'
+                      ? 'bg-[#10B981] text-[#0B0F17] shadow-sm shadow-[#10B981]/30'
+                      : 'text-[#CBD5E1] hover:text-[#F8FAFC]'
                   }`}
                 >
                   <Disc3 size={14} />
@@ -419,10 +428,10 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                     }
                   }}
                   data-testid="toggle-lyrics-page"
-                  className={`inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-xs font-semibold transition-colors ${
+                  className={`relative inline-flex items-center gap-1.5 h-8 px-3.5 rounded-xl text-xs font-semibold transition-colors ${
                     activeTab === 'lyrics'
-                      ? 'bg-[#10B981] text-[#0B0F17]'
-                      : 'text-[#94A3B8] hover:text-[#F8FAFC]'
+                      ? 'bg-[#10B981] text-[#0B0F17] shadow-sm shadow-[#10B981]/30'
+                      : 'text-[#CBD5E1] hover:text-[#F8FAFC]'
                   }`}
                 >
                   <Mic2 size={14} />
@@ -438,25 +447,25 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
             </div>
 
             {activeTab === 'lyrics' ? (
-              /* Dedicated Interactive Synced & Plain Lyrics Page */
+              /* Dedicated Interactive Synced & Plain Lyrics Page (Dynamic Glass Card) */
               <div
-                className="flex-1 min-h-0 flex flex-col my-3 rounded-2xl bg-[#131A26]/75 border border-[#1E293B] overflow-hidden"
+                className="relative z-10 flex-1 min-h-0 flex flex-col my-3 rounded-2xl dynamic-glass-elevated overflow-hidden"
                 data-testid="lyrics-page-view"
               >
                 {/* Mini Track Context Bar inside Lyrics Page */}
-                <div className="flex items-center justify-between gap-2.5 px-4 py-2.5 border-b border-[#1E293B]/80 bg-[#0B0F17]/40 shrink-0">
+                <div className="flex items-center justify-between gap-2.5 px-4 py-2.5 border-b border-white/[0.1] bg-white/[0.04] shrink-0">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <CoverArtwork
                       src={track.coverUrl}
                       alt={track.title}
-                      className="w-9 h-9 rounded-lg shrink-0"
+                      className="w-9 h-9 rounded-lg shrink-0 ring-1 ring-white/15"
                       iconSize={16}
                     />
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-[#F8FAFC] truncate">
                         {track.title}
                       </p>
-                      <p className="text-[11px] text-[#94A3B8] truncate">
+                      <p className="text-[11px] text-[#CBD5E1]/80 truncate">
                         {track.artist}
                       </p>
                     </div>
@@ -466,7 +475,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                       <button
                         type="button"
                         onClick={() => setAutoScrollLyrics(true)}
-                        className="h-7 px-2.5 rounded-lg bg-[#10B981]/15 text-[#10B981] text-[11px] font-semibold"
+                        className="h-7 px-2.5 rounded-lg bg-[#10B981]/20 border border-[#10B981]/30 text-[#10B981] text-[11px] font-semibold"
                       >
                         Ikuti Lirik
                       </button>
@@ -476,7 +485,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                       onClick={() => void loadLyrics(track, true)}
                       disabled={isLoadingLyrics || isOfflineMode}
                       aria-label="Muat ulang lirik"
-                      className="flex items-center justify-center w-8 h-8 rounded-lg text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E293B] disabled:opacity-40"
+                      className="flex items-center justify-center w-8 h-8 rounded-lg dynamic-glass-button text-[#CBD5E1] hover:text-[#F8FAFC] disabled:opacity-40"
                     >
                       <RefreshCw
                         size={14}
@@ -525,12 +534,12 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                         <div
                           key={idx}
                           style={{ width: `${w}%` }}
-                          className="h-4 rounded bg-[#1E293B] animate-pulse"
+                          className="h-4 rounded bg-white/[0.08] animate-pulse"
                         />
                       ))}
                     </div>
                   ) : syncedLines.length > 0 ? (
-                    <div className="space-y-3 py-4">
+                    <div className="space-y-2.5 py-4">
                       {syncedLines.map((line, idx) => {
                         const isLineActive = idx === activeLineIndex;
                         const isPast = activeLineIndex > idx;
@@ -543,12 +552,12 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                               onSeek(line.timeSec);
                               setAutoScrollLyrics(true);
                             }}
-                            className={`block w-full text-left rounded-lg px-2 py-1 transition-all duration-200 ${
+                            className={`block w-full text-left rounded-xl px-3 py-1.5 transition-all duration-200 ${
                               isLineActive
-                                ? 'text-[#10B981] font-bold text-[18px] leading-snug bg-[#10B981]/10'
+                                ? 'text-[#10B981] font-bold text-[18px] leading-snug bg-[#10B981]/15 border border-[#10B981]/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
                                 : isPast
-                                ? 'text-[#94A3B8]/55 text-[15px] leading-snug hover:text-[#F8FAFC]'
-                                : 'text-[#CBD5E1]/85 text-[15px] leading-snug hover:text-[#F8FAFC]'
+                                ? 'text-[#CBD5E1]/55 text-[15px] leading-snug hover:text-[#F8FAFC] hover:bg-white/[0.04]'
+                                : 'text-[#F8FAFC]/90 text-[15px] leading-snug hover:text-[#F8FAFC] hover:bg-white/[0.04]'
                             }`}
                           >
                             {line.text}
@@ -586,7 +595,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                       <button
                         type="button"
                         onClick={() => void loadLyrics(track, true)}
-                        className="h-9 px-3.5 rounded-lg bg-[#1E293B] hover:bg-[#334155] text-xs font-medium text-[#F8FAFC]"
+                        className="h-9 px-3.5 rounded-xl dynamic-glass-button text-xs font-medium text-[#F8FAFC]"
                       >
                         Ekstrak Ulang dari Lagu
                       </button>
@@ -596,7 +605,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
 
                 {/* Footer Attribution for Lyrics Source */}
                 {hasLyricsAvailable && (
-                  <div className="px-4 py-2 border-t border-[#1E293B]/70 bg-[#0B0F17]/40 text-[10px] text-[#94A3B8] flex items-center justify-between shrink-0">
+                  <div className="px-4 py-2 border-t border-white/[0.08] bg-white/[0.03] text-[10px] text-[#CBD5E1]/80 flex items-center justify-between shrink-0">
                     <span>
                       {syncedLines.length > 0
                         ? 'Lirik Tersinkron • Ketuk baris untuk lompat waktu'
@@ -616,7 +625,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
               <>
                 {/* Optional YouTube Music / Google Drive Embedded Player Switcher */}
                 {!isOfflineMode && track.youtubeVideoId && (
-                  <div className="flex justify-center mt-2 shrink-0">
+                  <div className="relative z-10 flex justify-center mt-2 shrink-0">
                     <button
                       type="button"
                       onClick={() => {
@@ -625,10 +634,10 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                         }
                         setShowYtPlayer((prev) => !prev);
                       }}
-                      className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${
+                      className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-xl text-xs font-medium transition-colors ${
                         showYtPlayer
-                          ? 'bg-[#10B981] text-[#0B0F17] border-[#10B981]'
-                          : 'bg-[#131A26] text-[#94A3B8] hover:text-[#F8FAFC] border-[#1E293B]'
+                          ? 'bg-[#10B981] text-[#0B0F17] border border-[#10B981]'
+                          : 'dynamic-glass-button text-[#CBD5E1] hover:text-[#F8FAFC]'
                       }`}
                     >
                       <Radio size={13} />
@@ -642,7 +651,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                 )}
 
                 {!isOfflineMode && !track.youtubeVideoId && track.driveFileId && (
-                  <div className="flex items-center justify-center gap-2 mt-2 shrink-0">
+                  <div className="relative z-10 flex items-center justify-center gap-2 mt-2 shrink-0">
                     {!track.drivePreviewOnly && (
                       <button
                         type="button"
@@ -652,10 +661,10 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                           }
                           setShowDrivePlayer((prev) => !prev);
                         }}
-                        className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${
+                        className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-xl text-xs font-medium transition-colors ${
                           showDrivePlayer
-                            ? 'bg-[#10B981] text-[#0B0F17] border-[#10B981]'
-                            : 'bg-[#131A26] text-[#94A3B8] hover:text-[#F8FAFC] border-[#1E293B]'
+                            ? 'bg-[#10B981] text-[#0B0F17] border border-[#10B981]'
+                            : 'dynamic-glass-button text-[#CBD5E1] hover:text-[#F8FAFC]'
                         }`}
                       >
                         <FolderSync size={13} />
@@ -670,7 +679,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                       href={`https://drive.google.com/file/d/${encodeURIComponent(track.driveFileId)}/view`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#131A26] hover:bg-[#1E293B] border border-[#1E293B] text-[11px] font-medium text-[#94A3B8] hover:text-[#F8FAFC] transition-colors"
+                      className="inline-flex items-center gap-1 h-8 px-2.5 rounded-xl dynamic-glass-button text-[11px] font-medium text-[#CBD5E1] hover:text-[#F8FAFC] transition-colors"
                     >
                       <ExternalLink size={12} />
                       <span>Buka File di Drive</span>
@@ -678,41 +687,41 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                   </div>
                 )}
 
-                {/* Large Album Artwork or Embedded YouTube Music / Google Drive Player */}
-                <div className="relative my-3 flex items-center justify-center">
+                {/* Large Album Artwork inside Dynamic Glass Frame or Embedded Player */}
+                <div className="relative z-10 my-3 flex items-center justify-center">
                   <motion.div
                     aria-hidden="true"
                     animate={{
-                      scale: isPlaying ? [0.96, 1.05, 0.96] : 0.92,
-                      opacity: isPlaying ? [0.22, 0.38, 0.22] : 0.12,
+                      scale: isPlaying ? [0.96, 1.06, 0.96] : 0.92,
+                      opacity: isPlaying ? [0.25, 0.42, 0.25] : 0.14,
                     }}
                     transition={{
                       duration: 3.6,
                       repeat: Infinity,
                       ease: 'easeInOut',
                     }}
-                    className="absolute w-64 h-64 rounded-full bg-[#10B981]/30 blur-3xl pointer-events-none"
+                    className="absolute w-64 h-64 rounded-full bg-[#10B981]/35 blur-3xl pointer-events-none"
                   />
                   {showYtPlayer && track.youtubeVideoId ? (
-                    <div className="relative w-full max-w-[310px] aspect-square rounded-2xl overflow-hidden shadow-2xl shadow-black/70 border border-[#1E293B] bg-black">
+                    <div className="relative w-full max-w-[310px] aspect-square rounded-3xl p-2 dynamic-glass-elevated overflow-hidden">
                       <iframe
                         src={`https://www.youtube.com/embed/${encodeURIComponent(track.youtubeVideoId)}?autoplay=1&playsinline=1&rel=0`}
                         title={`YouTube Music: ${track.title}`}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
-                        className="w-full h-full border-0"
+                        className="w-full h-full rounded-2xl border-0 bg-black"
                       />
                     </div>
                   ) : showDrivePlayer && track.driveFileId ? (
-                    <div className="relative w-full max-w-[310px] aspect-square rounded-2xl overflow-hidden shadow-2xl shadow-black/70 border border-[#1E293B] bg-[#0B0F17] flex flex-col">
+                    <div className="relative w-full max-w-[310px] aspect-square rounded-3xl p-2 dynamic-glass-elevated overflow-hidden flex flex-col">
                       <iframe
                         src={`https://drive.google.com/file/d/${encodeURIComponent(track.driveFileId)}/preview`}
                         title={`Google Drive Audio: ${track.title}`}
                         allow="autoplay; encrypted-media"
                         allowFullScreen
-                        className="w-full flex-1 border-0"
+                        className="w-full flex-1 rounded-t-2xl border-0 bg-[#0B0F17]"
                       />
-                      <div className="px-3 py-1.5 bg-[#131A26] border-t border-[#1E293B] text-[10px] text-[#94A3B8] text-center">
+                      <div className="px-3 py-1.5 bg-white/[0.06] border-t border-white/10 rounded-b-2xl text-[10px] text-[#CBD5E1] text-center">
                         Memakai sesi login Google browser Anda tanpa OAuth
                       </div>
                     </div>
@@ -720,12 +729,12 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                     <motion.div
                       animate={{ scale: isPlaying ? 1 : 0.94 }}
                       transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                      className="relative w-full max-w-[300px] aspect-square rounded-2xl overflow-hidden shadow-2xl shadow-black/70 border border-[#1E293B]"
+                      className="relative w-full max-w-[300px] aspect-square rounded-3xl p-2.5 dynamic-glass-elevated"
                     >
                       <CoverArtwork
                         src={track.coverUrl}
                         alt={`${track.album} cover art`}
-                        className="w-full h-full rounded-2xl"
+                        className="w-full h-full rounded-2xl shadow-2xl shadow-black/70 ring-1 ring-white/20"
                         iconSize={56}
                       />
                     </motion.div>
@@ -734,15 +743,15 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
               </>
             )}
 
-            {/* Track Info & Quick Actions + Controls */}
-            <div className="space-y-4 shrink-0">
+            {/* Track Info & Quick Actions + Controls inside Dynamic Glass Panel */}
+            <div className="relative z-10 rounded-3xl dynamic-glass-card p-4 space-y-3.5 shrink-0">
               {activeTab === 'player' && (
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <h2 className="text-xl font-bold text-[#F8FAFC] truncate leading-tight">
                       {track.title}
                     </h2>
-                    <div className="flex items-center gap-1.5 mt-1 text-sm text-[#94A3B8]">
+                    <div className="flex items-center gap-1.5 mt-1 text-sm text-[#CBD5E1]/85">
                       {isDownloaded && (
                         <CheckCircle2
                           size={14}
@@ -761,7 +770,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                       disabled={isOfflineMode && !isDownloaded}
                       aria-label={`Save ${track.title} MP3 file`}
                       title="Save MP3 file to device"
-                      className="flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E293B] transition-colors disabled:opacity-40"
+                      className="flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full text-[#CBD5E1] hover:text-[#F8FAFC] hover:bg-white/[0.08] transition-colors disabled:opacity-40"
                     >
                       <FileDown size={20} />
                     </button>
@@ -781,14 +790,14 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                         isLiked ? `Unlike ${track.title}` : `Like ${track.title}`
                       }
                       aria-pressed={isLiked}
-                      className="flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E293B] active:scale-95 transition-all focus-visible:outline-2 focus-visible:outline-[#10B981]"
+                      className="flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full text-[#CBD5E1] hover:text-[#F8FAFC] hover:bg-white/[0.08] active:scale-95 transition-all focus-visible:outline-2 focus-visible:outline-[#10B981]"
                     >
                       <Heart
                         size={22}
                         className={
                           isLiked
                             ? 'text-[#10B981] fill-[#10B981]'
-                            : 'text-[#94A3B8]'
+                            : 'text-[#CBD5E1]'
                         }
                       />
                     </button>
@@ -799,9 +808,9 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
               {/* Interactive Seekbar Scrubber */}
               <div>
                 <div className="relative h-6 flex items-center">
-                  <div className="w-full h-1.5 rounded-full bg-[#1E293B] overflow-hidden pointer-events-none">
+                  <div className="w-full h-1.5 rounded-full bg-white/[0.12] overflow-hidden pointer-events-none">
                     <div
-                      className="h-full bg-[#10B981] rounded-full"
+                      className="h-full bg-gradient-to-r from-[#10B981] to-[#34D399] rounded-full shadow-[0_0_8px_rgba(16,185,129,0.6)]"
                       style={{ width: `${progressPercent}%` }}
                     />
                   </div>
@@ -816,7 +825,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                     className="seek-slider absolute inset-0 w-full h-full opacity-100"
                   />
                 </div>
-                <div className="flex items-center justify-between text-xs font-mono tabular-nums text-[#94A3B8] mt-1">
+                <div className="flex items-center justify-between text-xs font-mono tabular-nums text-[#CBD5E1]/80 mt-1">
                   <span data-testid="player-current-time">
                     {formatTime(clampedTime)}
                   </span>
@@ -835,8 +844,8 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                   aria-pressed={shuffle}
                   className={`flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-[#10B981] ${
                     shuffle
-                      ? 'text-[#10B981] bg-[#10B981]/10'
-                      : 'text-[#94A3B8] hover:text-[#F8FAFC]'
+                      ? 'text-[#10B981] bg-[#10B981]/15 border border-[#10B981]/30'
+                      : 'text-[#CBD5E1] hover:text-[#F8FAFC] hover:bg-white/[0.06]'
                   }`}
                 >
                   <Shuffle size={20} />
@@ -846,7 +855,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                   type="button"
                   onClick={onPrevious}
                   aria-label="Previous track"
-                  className="flex items-center justify-center min-h-[48px] min-w-[48px] rounded-full text-[#F8FAFC] hover:bg-[#1E293B] active:scale-95 transition-all focus-visible:outline-2 focus-visible:outline-[#10B981]"
+                  className="flex items-center justify-center min-h-[48px] min-w-[48px] rounded-full text-[#F8FAFC] hover:bg-white/[0.08] active:scale-95 transition-all focus-visible:outline-2 focus-visible:outline-[#10B981]"
                 >
                   <SkipBack size={26} fill="currentColor" />
                 </button>
@@ -857,7 +866,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                   onClick={onTogglePlay}
                   aria-label={isPlaying ? 'Pause' : 'Play'}
                   data-testid="fullscreen-play-pause"
-                  className="flex items-center justify-center w-16 h-16 rounded-full bg-[#10B981] hover:bg-[#059669] text-[#0B0F17] shadow-lg shadow-[#10B981]/30 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F8FAFC]"
+                  className="flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-[#34D399] to-[#10B981] hover:from-[#10B981] hover:to-[#059669] text-[#0B0F17] shadow-lg shadow-[#10B981]/35 ring-1 ring-white/30 transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F8FAFC]"
                 >
                   {isPlaying ? (
                     <Pause size={28} fill="currentColor" />
@@ -874,7 +883,7 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                   type="button"
                   onClick={onNext}
                   aria-label="Next track"
-                  className="flex items-center justify-center min-h-[48px] min-w-[48px] rounded-full text-[#F8FAFC] hover:bg-[#1E293B] active:scale-95 transition-all focus-visible:outline-2 focus-visible:outline-[#10B981]"
+                  className="flex items-center justify-center min-h-[48px] min-w-[48px] rounded-full text-[#F8FAFC] hover:bg-white/[0.08] active:scale-95 transition-all focus-visible:outline-2 focus-visible:outline-[#10B981]"
                 >
                   <SkipForward size={26} fill="currentColor" />
                 </button>
@@ -886,8 +895,8 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                   title={repeatLabel}
                   className={`relative flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-[#10B981] ${
                     repeatMode !== 'off'
-                      ? 'text-[#10B981] bg-[#10B981]/10'
-                      : 'text-[#94A3B8] hover:text-[#F8FAFC]'
+                      ? 'text-[#10B981] bg-[#10B981]/15 border border-[#10B981]/30'
+                      : 'text-[#CBD5E1] hover:text-[#F8FAFC] hover:bg-white/[0.06]'
                   }`}
                 >
                   {repeatMode === 'one' ? (

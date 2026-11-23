@@ -16,7 +16,7 @@ import {
 import { motion } from 'motion/react';
 import { AudioQuality, Track } from '../types/music';
 import { formatTime } from '../utils/playerLogic';
-import { CoverArtwork } from './CoverArtwork';
+import { CoverArtwork, TrackPhotoBackground } from './CoverArtwork';
 import { TrackListItem } from './TrackListItem';
 
 const GENRE_FILTERS = [
@@ -138,11 +138,11 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Search Bar */}
+      {/* Search Bar (Dynamic Glass Input) */}
       <div className="relative">
         <Search
           size={18}
-          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none z-10"
         />
         <input
           type="search"
@@ -154,14 +154,14 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
               : 'Cari di YouTube Music & Drive (Bernadya, Tulus, Sheila On 7...)'
           }
           aria-label="Search music catalog"
-          className="w-full h-11 pl-10 pr-10 rounded-xl bg-[#1E293B] text-sm text-[#F8FAFC] placeholder:text-[#94A3B8] border border-transparent focus:border-[#10B981] focus:outline-none transition-colors"
+          className="w-full h-11 pl-10 pr-10 rounded-xl dynamic-glass-input text-sm text-[#F8FAFC] placeholder:text-[#94A3B8] focus:outline-none transition-all"
         />
         {searchQuery && (
           <button
             type="button"
             onClick={() => onSearchChange('')}
             aria-label="Clear search"
-            className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center min-h-[40px] min-w-[40px] text-[#94A3B8] hover:text-[#F8FAFC]"
+            className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center min-h-[40px] min-w-[40px] text-[#94A3B8] hover:text-[#F8FAFC] z-10"
           >
             <X size={16} />
           </button>
@@ -170,7 +170,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
 
       {/* Iframe Cookie Block Notice for Mobile Browsers */}
       {!isOfflineMode && iframeAuthBlocked && typeof window !== 'undefined' && (
-        <div className="rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/30 px-3.5 py-2.5 flex items-center justify-between gap-2.5">
+        <div className="rounded-xl bg-[#F59E0B]/10 backdrop-blur-md border border-[#F59E0B]/30 px-3.5 py-2.5 flex items-center justify-between gap-2.5">
           <p className="text-[11px] text-[#FDE68A] leading-snug">
             Browser HP memblokir cookie pratinjau untuk streaming Drive. Buka di tab browser penuh agar semua lagu Drive lancar.
           </p>
@@ -186,12 +186,12 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
         </div>
       )}
 
-      {/* Multi-Source API Status Bar: Google Drive + YouTube Music API */}
+      {/* Multi-Source API Status Bar: Google Drive + YouTube Music API (Dynamic Glass Card) */}
       {!isOfflineMode && (
-        <div className="rounded-xl bg-[#131A26] border border-[#1E293B] p-3 space-y-2.5">
+        <div className="rounded-2xl dynamic-glass-card p-3 space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-[#10B981]/15 text-[#10B981] flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 rounded-lg bg-[#10B981]/15 border border-[#10B981]/25 text-[#10B981] flex items-center justify-center shrink-0">
                 {activeGenre === 'ytmusic' ? (
                   <Radio size={15} />
                 ) : (
@@ -238,7 +238,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowDriveInput((prev) => !prev)}
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-[#1E293B] hover:bg-[#334155] text-[11px] font-medium text-[#F8FAFC] transition-colors"
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg dynamic-glass-button text-[11px] font-medium text-[#F8FAFC] transition-colors"
               >
                 <Link2 size={12} />
                 <span>Drive / GitHub</span>
@@ -249,7 +249,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                 disabled={isLoadingApi}
                 aria-label="Sync Google Drive & Music APIs"
                 title="Sinkronkan ulang lagu"
-                className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-[#10B981]/15 hover:bg-[#10B981]/25 text-[#10B981] transition-colors disabled:opacity-50"
+                className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-[#10B981]/15 hover:bg-[#10B981]/25 border border-[#10B981]/25 text-[#10B981] transition-colors disabled:opacity-50"
               >
                 <RefreshCw
                   size={13}
@@ -269,7 +269,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                     onChange={(e) => setCustomDriveInput(e.target.value)}
                     placeholder="Tempel link Drive (folder/file/open?id=) atau GitHub..."
                     aria-label="Google Drive or GitHub repository URL"
-                    className="w-full h-9 pl-3 pr-8 rounded-lg bg-[#0B0F17] border border-[#1E293B] text-xs text-[#F8FAFC] placeholder:text-[#94A3B8]/60 focus:outline-none focus:border-[#10B981]"
+                    className="w-full h-9 pl-3 pr-8 rounded-lg dynamic-glass-input text-xs text-[#F8FAFC] placeholder:text-[#94A3B8]/60 focus:outline-none"
                   />
                   {customDriveInput && (
                     <button
@@ -335,7 +335,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                   <button
                     type="button"
                     onClick={onResetDriveFolder}
-                    className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#1E293B] hover:bg-[#334155] text-[#F8FAFC] text-[11px] font-medium transition-colors"
+                    className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg dynamic-glass-button text-[#F8FAFC] text-[11px] font-medium transition-colors"
                   >
                     <RefreshCw size={12} />
                     <span>168 Lagu Drive Default</span>
@@ -347,7 +347,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
         </div>
       )}
 
-      {/* Interactive Genre Filter Chips */}
+      {/* Interactive Genre Filter Chips (Dynamic Glass Rail) */}
       {!isOfflineMode && !searchQuery.trim() && (
         <div
           role="tablist"
@@ -363,17 +363,17 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => onSelectGenre(g.id)}
-                className={`relative h-9 px-3.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[#10B981] ${
+                className={`relative h-9 px-3.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[#10B981] ${
                   isActive
                     ? 'text-[#0B0F17]'
-                    : 'bg-[#131A26] text-[#94A3B8] hover:text-[#F8FAFC]'
+                    : 'dynamic-glass-button text-[#CBD5E1] hover:text-[#F8FAFC]'
                 }`}
               >
                 {isActive && (
                   <motion.span
                     layoutId="active-genre-bg"
                     transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-                    className="absolute inset-0 rounded-lg bg-[#10B981]"
+                    className="absolute inset-0 rounded-xl bg-gradient-to-r from-[#10B981] to-[#34D399] shadow-[0_4px_14px_rgba(16,185,129,0.3)]"
                   />
                 )}
                 <span className="relative z-10">{g.label}</span>
@@ -383,7 +383,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
         </div>
       )}
 
-      {/* Featured Spotlight */}
+      {/* Featured Spotlight (Dynamic Glass Hero with Artwork Refraction) */}
       {showFeaturedSpotlight && featuredTrack && (
         <motion.section
           initial={{ opacity: 0, y: 8 }}
@@ -391,14 +391,26 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
           transition={{ duration: 0.25 }}
           aria-label="Featured track"
         >
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#131A26] to-[#1E293B]/60 border border-[#1E293B] p-4 flex items-center gap-4">
-            <CoverArtwork
-              src={featuredTrack.coverUrl}
-              alt={`${featuredTrack.album} cover art`}
-              className="w-20 h-20 rounded-xl shadow-lg"
-              iconSize={28}
+          <div className="relative overflow-hidden rounded-2xl dynamic-glass-elevated p-4 flex items-center gap-4">
+            {/* Live Song Photo Background behind Dynamic Glass Hero */}
+            <TrackPhotoBackground
+              coverUrl={featuredTrack.coverUrl}
+              trackId={featuredTrack.id}
+              title={featuredTrack.title}
+              isPlaying={isPlaying && currentTrackId === featuredTrack.id}
+              variant="mini"
             />
-            <div className="flex-1 min-w-0">
+
+            <div className="relative z-10 shrink-0 rounded-xl overflow-hidden ring-1 ring-white/20 shadow-lg shadow-black/50">
+              <CoverArtwork
+                src={featuredTrack.coverUrl}
+                alt={`${featuredTrack.album} cover art`}
+                className="w-20 h-20 rounded-xl"
+                iconSize={28}
+              />
+            </div>
+
+            <div className="relative z-10 flex-1 min-w-0">
               <p className="text-[11px] font-medium text-[#10B981]">
                 {featuredTrack.source === 'ytmusic'
                   ? 'YouTube Music Trending'
@@ -417,7 +429,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
               <h2 className="text-base font-bold text-[#F8FAFC] truncate mt-0.5">
                 {featuredTrack.title}
               </h2>
-              <p className="text-[13px] text-[#94A3B8] truncate">
+              <p className="text-[13px] text-[#CBD5E1]/85 truncate">
                 {featuredTrack.artist} · {formatTime(featuredTrack.durationSec)}
               </p>
               <div className="flex items-center gap-2 mt-2.5">
@@ -425,7 +437,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                   type="button"
                   onPointerDown={() => onPrefetchTrack?.(featuredTrack)}
                   onClick={() => onPlayTrack(featuredTrack)}
-                  className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-[#10B981] hover:bg-[#059669] active:scale-95 text-[#0B0F17] text-xs font-semibold transition-all whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-[#10B981] hover:bg-[#059669] active:scale-95 text-[#0B0F17] text-xs font-semibold shadow-sm shadow-[#10B981]/25 transition-all whitespace-nowrap shrink-0"
                 >
                   <Play size={14} fill="currentColor" />
                   <span>Putar Sekarang</span>
@@ -434,7 +446,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                   <button
                     type="button"
                     onClick={() => onDownloadTrack(featuredTrack)}
-                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-[#1E293B] hover:bg-[#334155] active:scale-95 text-[#F8FAFC] text-xs font-medium transition-all whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl dynamic-glass-button active:scale-95 text-[#F8FAFC] text-xs font-medium transition-all whitespace-nowrap shrink-0"
                   >
                     <ArrowDownToLine size={14} />
                     <span>Simpan Offline</span>

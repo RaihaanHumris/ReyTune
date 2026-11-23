@@ -63,7 +63,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Lock Screen & Background Playback Card */}
-      <section className="rounded-2xl bg-[#131A26] border border-[#1E293B] p-4 space-y-3">
+      <section className="rounded-2xl dynamic-glass-card p-4 space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
             <Lock size={18} className="text-[#10B981]" />
@@ -80,7 +80,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           Kontrol musik otomatis tampil di <strong>Layar Kunci (Lock Screen)</strong> dan panel notifikasi HP saat layar mati—lengkap dengan sampul album, tombol Play/Pause, Next/Prev, serta geser durasi lagu.
         </p>
 
-        <div className="rounded-xl bg-[#0B0F17]/70 border border-[#1E293B] p-3 space-y-2 text-xs text-[#94A3B8]">
+        <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3 space-y-2 text-xs text-[#94A3B8]">
           <div className="flex items-center gap-2 text-[#F8FAFC] font-medium">
             <CheckCircle2 size={14} className="text-[#10B981] shrink-0" />
             <span>Pemutaran Latar Belakang &amp; Auto-Next Lagu Aktif</span>
@@ -97,7 +97,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             role="switch"
             aria-checked={keepScreenAwake}
             onClick={onToggleKeepScreenAwake}
-            className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-[#0B0F17]/60 border border-[#1E293B] hover:border-[#10B981]/50 transition-colors text-left"
+            className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] hover:border-[#10B981]/50 transition-colors text-left"
           >
             <div>
               <p className="text-xs font-semibold text-[#F8FAFC]">
@@ -123,7 +123,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </section>
 
       {/* PWA Install & Offline Readiness */}
-      <section className="rounded-2xl bg-[#131A26] border border-[#1E293B] p-4 space-y-3">
+      <section className="rounded-2xl dynamic-glass-card p-4 space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
             <Smartphone size={18} className="text-[#10B981]" />
@@ -163,7 +163,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </section>
 
       {/* Audio Download Quality */}
-      <section className="rounded-2xl bg-[#131A26] border border-[#1E293B] p-4 space-y-3">
+      <section className="rounded-2xl dynamic-glass-card p-4 space-y-3">
         <div className="flex items-center gap-2.5">
           <SlidersHorizontal size={18} className="text-[#10B981]" />
           <h2 className="text-base font-semibold text-[#F8FAFC]">
@@ -185,8 +185,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 aria-pressed={isSelected}
                 className={`w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl border text-left transition-colors ${
                   isSelected
-                    ? 'bg-[#1E293B] border-[#10B981]/60'
-                    : 'bg-[#0B0F17]/50 border-[#1E293B] hover:bg-[#1E293B]/60'
+                    ? 'bg-white/[0.08] border-[#10B981]/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
+                    : 'bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.06]'
                 }`}
               >
                 <div>
@@ -207,7 +207,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </section>
 
       {/* Cache & Storage Management */}
-      <section className="rounded-2xl bg-[#131A26] border border-[#1E293B] p-4 space-y-3">
+      <section className="rounded-2xl dynamic-glass-card p-4 space-y-3">
         <div className="flex items-center gap-2.5">
           <HardDrive size={18} className="text-[#10B981]" />
           <h2 className="text-base font-semibold text-[#F8FAFC]">

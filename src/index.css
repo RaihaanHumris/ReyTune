@@ -126,3 +126,124 @@ input[type="range"].seek-slider::-moz-range-thumb {
   border: 2px solid #F8FAFC;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
+
+/* Dynamic Glassmorphism Surfaces (Tuned for Live Song Photo Backgrounds) */
+:root {
+  --glass-accent-rgb: 16, 185, 129;
+  --glass-secondary-rgb: 56, 189, 248;
+}
+
+.dynamic-glass-header {
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 38, 0.58) 0%,
+    rgba(11, 15, 23, 0.42) 100%
+  );
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.12),
+    0 8px 24px -8px rgba(0, 0, 0, 0.45);
+}
+
+.dynamic-glass-card {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(19, 26, 38, 0.44) 100%
+  );
+  backdrop-filter: blur(22px) saturate(185%);
+  -webkit-backdrop-filter: blur(22px) saturate(185%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
+    inset 0 0 24px 0 rgba(var(--glass-accent-rgb), 0.05),
+    0 12px 32px -10px rgba(0, 0, 0, 0.55);
+}
+
+.dynamic-glass-elevated {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.13) 0%,
+    rgba(15, 23, 38, 0.55) 100%
+  );
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.24),
+    inset 0 0 28px 0 rgba(var(--glass-accent-rgb), 0.08),
+    0 20px 44px -12px rgba(0, 0, 0, 0.7);
+}
+
+.dynamic-glass-dock {
+  background: linear-gradient(
+    180deg,
+    rgba(30, 41, 59, 0.58) 0%,
+    rgba(11, 15, 23, 0.68) 100%
+  );
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
+    0 16px 36px -8px rgba(0, 0, 0, 0.75);
+}
+
+.dynamic-glass-input {
+  background: rgba(15, 23, 38, 0.42);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.12),
+    0 4px 16px -4px rgba(0, 0, 0, 0.35);
+}
+
+.dynamic-glass-input:focus-within,
+.dynamic-glass-input:focus {
+  background: rgba(15, 23, 38, 0.58);
+  border-color: rgba(16, 185, 129, 0.65);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.16),
+    0 0 0 3px rgba(16, 185, 129, 0.16);
+}
+
+.dynamic-glass-button {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px) saturate(170%);
+  -webkit-backdrop-filter: blur(16px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+}
+
+.dynamic-glass-button:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.dynamic-glass-row-active {
+  background: linear-gradient(
+    90deg,
+    rgba(16, 185, 129, 0.18) 0%,
+    rgba(255, 255, 255, 0.09) 55%,
+    rgba(15, 23, 38, 0.42) 100%
+  );
+  backdrop-filter: blur(20px) saturate(185%);
+  -webkit-backdrop-filter: blur(20px) saturate(185%);
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
+    0 8px 24px -6px rgba(16, 185, 129, 0.22);
+}
+
+/* Hide scrollbars cleanly on horizontal chip rails */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

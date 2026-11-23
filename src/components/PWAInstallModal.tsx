@@ -30,21 +30,21 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm p-0 sm:p-4"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-md p-0 sm:p-4"
         >
           <motion.div
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
             transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-            className="w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#131A26] border border-[#1E293B] p-6 shadow-2xl space-y-5"
+            className="w-full max-w-md rounded-t-3xl sm:rounded-3xl dynamic-glass-elevated p-6 space-y-5"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <img
                   src="/pwa-192x192.png"
                   alt="ReyTune app icon"
-                  className="w-12 h-12 rounded-2xl border border-[#1E293B]"
+                  className="w-12 h-12 rounded-2xl border border-white/15 shadow-md"
                 />
                 <div>
                   <h2 className="text-lg font-bold text-[#F8FAFC]">Install ReyTune</h2>
@@ -57,7 +57,7 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
                 type="button"
                 onClick={onClose}
                 aria-label="Close install dialog"
-                className="flex items-center justify-center min-h-[44px] min-w-[44px] -mr-2 -mt-2 rounded-full text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E293B]"
+                className="flex items-center justify-center min-h-[44px] min-w-[44px] -mr-2 -mt-2 rounded-full text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-white/[0.08]"
               >
                 <X size={20} />
               </button>
