@@ -327,10 +327,18 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
       ? 'GitHub Repository Audio'
       : track.source === 'audius'
       ? 'Audius Free MP3'
+      : track.source === 'hearthis'
+      ? 'Hearthis Free MP3'
+      : track.source === 'archive'
+      ? 'Internet Archive MP3'
+      : track.source === 'openverse'
+      ? 'Openverse CC MP3'
       : track.source === 'radio'
       ? 'Radio Live Indonesia'
       : track.source === 'jamendo'
-      ? 'Jamendo Free MP3'
+      ? 'Jamendo Free CC MP3'
+      : track.source === 'itunes'
+      ? 'iTunes 30s Preview'
       : 'ReyTune Online';
 
   const hasLyricsAvailable = Boolean(
@@ -763,25 +771,30 @@ export const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => onSaveFileToDevice(track)}
-                      disabled={isOfflineMode && !isDownloaded}
-                      aria-label={`Save ${track.title} MP3 file`}
-                      title="Save MP3 file to device"
-                      className="flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full text-[#CBD5E1] hover:text-[#F8FAFC] hover:bg-white/[0.08] transition-colors disabled:opacity-40"
-                    >
-                      <FileDown size={20} />
-                    </button>
-
-                    <CircularDownloadButton
-                      trackTitle={track.title}
-                      isDownloaded={isDownloaded}
-                      progress={downloadProgress}
-                      isOfflineMode={isOfflineMode}
-                      onDownload={() => onDownload(track)}
-                    />
+                  <div className="flex items-center gap-1 shrink-0">
+                    {track.source !== 'radio' && !track.id.startsWith('radio-') && (
+                      typeof downloadProgress === 'number' && downloadProgress < 100 ? (
+                        <CircularDownloadButton
+                          trackTitle={track.title}
+                          isDownloaded={isDownloaded}
+                          progress={downloadProgress}
+                          isOfflineMode={isOfflineMode}
+                          onDownload={() => onSaveFileToDevice(track)}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onSaveFileToDevice(track)}
+                          disabled={isOfflineMode && !isDownloaded}
+                          aria-label={`Download ${track.title} MP3`}
+                          title="Download MP3 ke perangkat & simpan offline"
+                          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl bg-[#10B981]/18 hover:bg-[#10B981]/28 border border-[#10B981]/35 text-[#10B981] text-xs font-semibold active:scale-95 transition-all disabled:opacity-40 whitespace-nowrap"
+                        >
+                          <FileDown size={15} />
+                          <span>Unduh MP3</span>
+                        </button>
+                      )
+                    )}
 
                     <button
                       type="button"

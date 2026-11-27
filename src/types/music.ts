@@ -10,7 +10,10 @@ export type TrackSource =
   | 'gdrive'
   | 'ytmusic'
   | 'jamendo'
+  | 'openverse'
   | 'audius'
+  | 'hearthis'
+  | 'archive'
   | 'radio'
   | 'github'
   | 'deezer'
@@ -31,6 +34,7 @@ export interface Track {
   drivePreviewOnly?: boolean;
   youtubeVideoId?: string;
   source?: TrackSource;
+  license?: string;
   isPreview?: boolean;
   featured?: boolean;
 }

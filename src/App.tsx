@@ -76,16 +76,16 @@ function getDirectAudioSrc(track: Track): string {
 }
 
 function getProxyAudioSrc(track: Track): string {
-  if (
-    (track.id.startsWith('gdrive-') ||
-      track.id.startsWith('ytm-') ||
-      track.id.startsWith('jamendo-')) &&
-    (track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://'))
-  ) {
-    return `/audio/tracks/${encodeURIComponent(track.id)}.mp3`;
-  }
   if (track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')) {
     const normalized = getDirectAudioSrc(track);
+    if (
+      track.id.startsWith('gdrive-') ||
+      track.id.startsWith('ytm-') ||
+      track.id.startsWith('jamendo-') ||
+      track.id.startsWith('audius-')
+    ) {
+      return `/audio/tracks/${encodeURIComponent(track.id)}.mp3?url=${encodeURIComponent(normalized)}`;
+    }
     return `/api/stream-track.mp3?url=${encodeURIComponent(normalized)}&id=${encodeURIComponent(track.id)}`;
   }
   if (track.audioUrl.startsWith('/api/music/ytm-audio')) {
@@ -140,7 +140,14 @@ function filterClientCatalogByGenre(genre: string): Track[] {
   if (g === 'drive') {
     return DRIVE_FOLDER_TRACKS;
   }
-  if (g === 'jamendo' || g === 'audius' || g === 'radio') {
+  if (
+    g === 'jamendo' ||
+    g === 'openverse' ||
+    g === 'audius' ||
+    g === 'hearthis' ||
+    g === 'archive' ||
+    g === 'radio'
+  ) {
     return [];
   }
   if (g === 'trending') {
@@ -211,6 +218,7 @@ export default function App() {
   const [librarySubTab, setLibrarySubTab] = useState<LibraryTab>('downloads');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeGenre, setActiveGenre] = useState('all');
+  const [audiusGenre, setAudiusGenre] = useState('');
   const [driveFolderUrl, setDriveFolderUrl] = useState(DEFAULT_DRIVE_FOLDER_URL);
   const [isOfflineMode, setIsOfflineMode] = useState<boolean>(
     typeof navigator !== 'undefined' ? !navigator.onLine : false
@@ -321,7 +329,10 @@ export default function App() {
     }
     if (
       activeGenre === 'jamendo' ||
+      activeGenre === 'openverse' ||
       activeGenre === 'audius' ||
+      activeGenre === 'hearthis' ||
+      activeGenre === 'archive' ||
       activeGenre === 'radio'
     ) {
       return onlineFeedTracks;
@@ -375,17 +386,32 @@ export default function App() {
     };
   }, []);
 
-  // Fetch complete music feed (Google Drive folder + online streams)
+  // Fetch complete music feed (Audius + Jamendo/Openverse CC + Hearthis + Archive + Google Drive + YT Music + Radio)
   const fetchDiscoverFeed = useCallback(
-    async (genre: string, folderOverride?: string, forceRefresh = false) => {
+    async (
+      genre: string,
+      folderOverride?: string,
+      forceRefresh = false,
+      audiusGenreOverride?: string
+    ) => {
       if (isOfflineMode) return;
       setIsLoadingApi(true);
       const targetFolder = folderOverride ?? driveFolderUrl;
+      const targetAudiusGenre = audiusGenreOverride ?? audiusGenre;
       try {
-        const res = await fetch(
-          `/api/music/discover?genre=${encodeURIComponent(genre)}&folder=${encodeURIComponent(targetFolder)}${forceRefresh ? '&refresh=1' : ''}`,
-          { credentials: 'include', signal: AbortSignal.timeout(8500) }
-        );
+        const params = new URLSearchParams({
+          genre,
+          folder: targetFolder,
+        });
+        if (forceRefresh) params.set('refresh', '1');
+        if (genre === 'audius' && targetAudiusGenre) {
+          params.set('audiusGenre', targetAudiusGenre);
+        }
+
+        const res = await fetch(`/api/music/discover?${params.toString()}`, {
+          credentials: 'include',
+          signal: AbortSignal.timeout(12000),
+        });
         const contentType = (res.headers.get('content-type') || '').toLowerCase();
         if (res.url.includes('__cookie_check') || contentType.includes('text/html')) {
           setIframeAuthBlocked(true);
@@ -412,7 +438,10 @@ export default function App() {
         }
         if (
           genre === 'jamendo' ||
+          genre === 'openverse' ||
           genre === 'audius' ||
+          genre === 'hearthis' ||
+          genre === 'archive' ||
           genre === 'radio' ||
           genre === 'drive'
         ) {
@@ -440,13 +469,13 @@ export default function App() {
       } catch {
         setIsLiveApi(false);
         if (forceRefresh) {
-          showToast('Gagal memuat link Google Drive. Coba lagi.', 'warning');
+          showToast('Gagal memuat feed musik. Coba lagi.', 'warning');
         }
       } finally {
         setIsLoadingApi(false);
       }
     },
-    [driveFolderUrl, isOfflineMode, showToast]
+    [audiusGenre, driveFolderUrl, isOfflineMode, showToast]
   );
 
   const handleSyncDriveFolder = useCallback(
@@ -463,7 +492,7 @@ export default function App() {
     if (!isOfflineMode) {
       void fetchDiscoverFeed(activeGenre);
     }
-  }, [activeGenre, fetchDiscoverFeed, isOfflineMode]);
+  }, [activeGenre, audiusGenre, fetchDiscoverFeed, isOfflineMode]);
 
   // Debounced live search against /api/music/search (Drive + Audius)
   useEffect(() => {
@@ -678,8 +707,12 @@ export default function App() {
         !track.id.startsWith('gdrive-') &&
         !track.id.startsWith('ytm-') &&
         !track.id.startsWith('jamendo-') &&
+        !track.id.startsWith('openverse-') &&
+        !track.id.startsWith('hearthis-') &&
+        !track.id.startsWith('archive-') &&
         !track.id.startsWith('github-') &&
         !track.id.startsWith('audius-') &&
+        !track.id.startsWith('itunes-') &&
         !track.audioUrl.startsWith('/audio/')
       ) {
         return null;
@@ -1600,29 +1633,13 @@ export default function App() {
     };
   }, [keepScreenAwake, isPlaying]);
 
-  // Real byte-streaming download into IndexedDB + Cache API
-  const handleDownloadTrack = useCallback(
-    async (track: Track) => {
-      if (isOfflineMode) {
-        showToast('Switch to Online Mode to download tracks', 'warning');
-        return;
-      }
-      if (track.drivePreviewOnly) {
-        showToast(
-          'File Drive ini masih Private. Ubah berbagi ke "Siapa saja yang memiliki link" agar bisa disimpan offline.',
-          'warning'
-        );
-        return;
-      }
-      if (downloadedIds.has(track.id) || downloadProgressMap[track.id] !== undefined) {
-        return;
-      }
-
+  // Helper: stream audio bytes with real-time progress and persist into IndexedDB offline storage
+  const fetchAndCacheTrackBlob = useCallback(
+    async (track: Track): Promise<Blob> => {
       setDownloadProgressMap((prev) => ({ ...prev, [track.id]: 5 }));
 
       try {
         const proxyUrl = getProxyAudioSrc(track);
-        const fetchUrl = proxyUrl;
         const res = await fetch(proxyUrl, { credentials: 'include' });
         const ct = (res.headers.get('content-type') || '').toLowerCase();
         if (!res.ok || ct.includes('text/html')) {
@@ -1645,15 +1662,18 @@ export default function App() {
               chunks.push(value);
               received += value.byteLength;
               if (contentLength > 0) {
-                const pct = Math.min(98, Math.max(5, Math.round((received / contentLength) * 100)));
+                const pct = Math.min(
+                  98,
+                  Math.max(5, Math.round((received / contentLength) * 100))
+                );
                 setDownloadProgressMap((prev) => ({ ...prev, [track.id]: pct }));
               } else {
-                fallbackPct = Math.min(95, fallbackPct + 8);
+                fallbackPct = Math.min(95, fallbackPct + 7);
                 setDownloadProgressMap((prev) => ({ ...prev, [track.id]: fallbackPct }));
               }
             }
           }
-          const mime = res.headers.get('content-type') || 'audio/mpeg';
+          const mime = ct.startsWith('audio/') ? ct.split(';')[0] : 'audio/mpeg';
           const totalBytes = chunks.reduce((acc, c) => acc + c.byteLength, 0);
           const merged = new Uint8Array(totalBytes);
           let offset = 0;
@@ -1666,10 +1686,14 @@ export default function App() {
           blob = await res.blob();
         }
 
+        if (blob.size < 4096) {
+          throw new Error('Audio payload too small');
+        }
+
         setDownloadProgressMap((prev) => ({ ...prev, [track.id]: 100 }));
 
         const record = await saveOfflineTrackBlob(track, blob);
-        await cacheTrackAudioOffline(fetchUrl);
+        await cacheTrackAudioOffline(proxyUrl);
         if (offlineBlobUrlsRef.current[track.id]) {
           URL.revokeObjectURL(offlineBlobUrlsRef.current[track.id]);
         }
@@ -1679,9 +1703,7 @@ export default function App() {
         setDownloadedIdList((prev) =>
           prev.includes(track.id) ? prev : [...prev, track.id]
         );
-        showToast(`Saved "${track.title}" for offline playback`, 'success');
-      } catch {
-        showToast(`Failed to download "${track.title}"`, 'warning');
+        return blob;
       } finally {
         setDownloadProgressMap((prev) => {
           const next = { ...prev };
@@ -1690,12 +1712,48 @@ export default function App() {
         });
       }
     },
-    [downloadProgressMap, downloadedIds, isOfflineMode, showToast]
+    []
   );
 
-  // Direct device file download (.mp3)
+  // Real byte-streaming download into IndexedDB + Cache API (offline library)
+  const handleDownloadTrack = useCallback(
+    async (track: Track) => {
+      if (isOfflineMode) {
+        showToast('Aktifkan Mode Online untuk mengunduh lagu', 'warning');
+        return;
+      }
+      if (track.source === 'radio' || track.id.startsWith('radio-')) {
+        showToast('Siaran radio live tidak bisa diunduh sebagai file MP3.', 'info');
+        return;
+      }
+      if (track.drivePreviewOnly) {
+        showToast(
+          'File Drive ini masih Private. Ubah berbagi ke "Siapa saja yang memiliki link" agar bisa disimpan offline.',
+          'warning'
+        );
+        return;
+      }
+      if (downloadedIds.has(track.id) || downloadProgressMap[track.id] !== undefined) {
+        return;
+      }
+
+      try {
+        await fetchAndCacheTrackBlob(track);
+        showToast(`"${track.title}" tersimpan untuk putar offline`, 'success');
+      } catch {
+        showToast(`Gagal mengunduh "${track.title}". Coba lagi.`, 'warning');
+      }
+    },
+    [downloadProgressMap, downloadedIds, fetchAndCacheTrackBlob, isOfflineMode, showToast]
+  );
+
+  // Direct device MP3 file download (.mp3) with live progress + automatic offline caching
   const handleSaveFileToDevice = useCallback(
     async (track: Track) => {
+      if (track.source === 'radio' || track.id.startsWith('radio-')) {
+        showToast('Siaran radio live tidak bisa diunduh sebagai file MP3.', 'info');
+        return;
+      }
       if (track.drivePreviewOnly) {
         showToast(
           'File Drive ini masih Private. Ubah izin berbagi Drive ke publik untuk mengunduh MP3.',
@@ -1703,43 +1761,63 @@ export default function App() {
         );
         return;
       }
+      if (downloadProgressMap[track.id] !== undefined) {
+        return;
+      }
+
+      const filename = sanitizeDownloadFilename(track.title, track.artist);
+      const triggerBlobDownload = (blob: Blob) => {
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      };
+
       try {
-        const filename = sanitizeDownloadFilename(track.title, track.artist);
+        // 1. Instant export if already saved offline in IndexedDB
         const offlineRec = await getOfflineTrackRecord(track.id);
-        if (offlineRec?.audioBlob) {
-          const blobUrl = URL.createObjectURL(offlineRec.audioBlob);
+        if (offlineRec?.audioBlob && offlineRec.audioBlob.size >= 4096) {
+          triggerBlobDownload(offlineRec.audioBlob);
+          showToast(`Mengunduh "${filename}"`, 'success');
+          return;
+        }
+
+        if (isOfflineMode) {
+          showToast('Aktifkan Mode Online untuk mengunduh lagu ini', 'warning');
+          return;
+        }
+
+        // 2. Stream via same-origin proxy with progress, save offline AND export .mp3 to device
+        showToast(`Mengunduh "${track.title}"...`, 'info');
+        const blob = await fetchAndCacheTrackBlob(track);
+        triggerBlobDownload(blob);
+        showToast(`Berhasil download "${filename}"`, 'success');
+      } catch {
+        // 3. Fallback to same-origin attachment route (never raw cross-origin URLs)
+        try {
+          const proxyBase = getProxyAudioSrc(track);
+          const sep = proxyBase.includes('?') ? '&' : '?';
+          const fallbackDownloadUrl = `${proxyBase}${sep}download=1&title=${encodeURIComponent(
+            track.title
+          )}&artist=${encodeURIComponent(track.artist)}`;
           const a = document.createElement('a');
-          a.href = blobUrl;
+          a.href = fallbackDownloadUrl;
           a.download = filename;
           document.body.appendChild(a);
           a.click();
           a.remove();
-          window.setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
-          showToast(`Exported "${filename}"`, 'success');
-          return;
+          showToast(`Memulai download "${filename}"`, 'info');
+        } catch {
+          showToast(`Gagal mengunduh "${track.title}"`, 'warning');
         }
-
-        const downloadUrl =
-          track.audioUrl.includes('drive.usercontent.google.com')
-            ? track.audioUrl
-            : track.audioUrl.startsWith('http://') || track.audioUrl.startsWith('https://')
-            ? `/api/stream-track.mp3?url=${encodeURIComponent(track.audioUrl)}&download=1&title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`
-            : track.audioUrl.startsWith('/api/music/ytm-audio')
-            ? `${track.audioUrl.replace('/api/music/ytm-audio', '/api/ytm-track.mp3')}&download=1`
-            : track.audioUrl;
-
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        showToast(`Downloading "${filename}"`, 'success');
-      } catch {
-        showToast('Could not save file to device', 'warning');
       }
     },
-    [showToast]
+    [downloadProgressMap, fetchAndCacheTrackBlob, isOfflineMode, showToast]
   );
 
   // Import local MP3 / audio files directly from user's mobile phone or laptop
@@ -2050,12 +2128,14 @@ export default function App() {
                   onSearchChange={setSearchQuery}
                   activeGenre={activeGenre}
                   onSelectGenre={setActiveGenre}
+                  audiusGenre={audiusGenre}
+                  onSelectAudiusGenre={setAudiusGenre}
                   driveFolderUrl={driveFolderUrl}
                   onSyncDriveFolder={handleSyncDriveFolder}
                   isLoadingApi={isLoadingApi}
                   isLiveApi={isLiveApi}
                   onRefreshFeed={() =>
-                    void fetchDiscoverFeed(activeGenre, driveFolderUrl, true)
+                    void fetchDiscoverFeed(activeGenre, driveFolderUrl, true, audiusGenre)
                   }
                   isOfflineMode={isOfflineMode}
                   currentTrackId={currentTrackId}

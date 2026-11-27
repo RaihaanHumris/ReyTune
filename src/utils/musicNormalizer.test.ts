@@ -5,9 +5,13 @@ import {
   extractDriveFolderId,
   extractDriveResourceKey,
   isSafeAudioProxyUrl,
+  normalizeArchiveTrack,
   normalizeAudiusTrack,
   normalizeDriveTrack,
   normalizeHearthisTrack,
+  normalizeItunesTrack,
+  normalizeOpenverseTrack,
+  parseArchiveDuration,
   parseDriveEmbeddedFolderHtml,
   parseDriveSubfoldersFromHtml,
   parseYouTubeMusicSearchResponse,
@@ -162,9 +166,90 @@ test('parseYouTubeMusicSearchResponse and normalizeHearthisTrack map YouTube Mus
   assert.equal(htTrack.title, 'Sephia');
   assert.equal(htTrack.durationSec, 294);
   assert.equal(htTrack.source, 'ytmusic');
+
+  const htNative = normalizeHearthisTrack(
+    {
+      id: '99124',
+      title: 'Midnight Groove',
+      duration: 215,
+      genre: 'Electronic',
+      stream_url: 'https://hearthis.at/sample/midnight/listen/',
+      user: { username: 'DJ Nova' },
+    },
+    { source: 'hearthis' }
+  );
+  assert.ok(htNative);
+  assert.equal(htNative.id, 'hearthis-99124');
+  assert.equal(htNative.source, 'hearthis');
+
+  const spamTrack = normalizeHearthisTrack({
+    id: '99999',
+    title: 'SLOT GACOR MAXWIN HARI INI',
+    duration: 180,
+    stream_url: 'https://hearthis.at/spam/track/listen/',
+  });
+  assert.equal(spamTrack, null);
 });
 
-test('isSafeAudioProxyUrl allows https music hosts and blocks private/non-https URLs', () => {
+test('normalizeOpenverseTrack, normalizeArchiveTrack, and normalizeItunesTrack map free music APIs cleanly', () => {
+  const ovJamendo = normalizeOpenverseTrack({
+    id: 'abc-123',
+    title: 'Midnight Breeze',
+    creator: 'Luna Sound',
+    url: 'https://prod-1.storage.jamendo.com/?trackid=12345&format=mp32',
+    thumbnail: 'https://api.openverse.org/v1/audio/abc-123/thumb/',
+    duration: 210000,
+    source: 'jamendo',
+    license: 'by-sa',
+    genres: ['Chill'],
+    audio_set: { title: 'Night Sessions' },
+  });
+  assert.ok(ovJamendo);
+  assert.equal(ovJamendo.id, 'openverse-abc-123');
+  assert.equal(ovJamendo.source, 'jamendo');
+  assert.equal(ovJamendo.durationSec, 210);
+  assert.equal(ovJamendo.isPreview, false);
+  assert.equal(ovJamendo.license, 'CC BY-SA');
+
+  assert.equal(parseArchiveDuration('03:45'), 225);
+  assert.equal(parseArchiveDuration('182.4'), 182);
+
+  const archiveTrack = normalizeArchiveTrack(
+    'cool-album-2024',
+    {
+      name: '01 Summer Nights.mp3',
+      format: 'VBR MP3',
+      title: 'Summer Nights',
+      creator: 'Indie Band',
+      length: '03:45',
+      size: '4500000',
+    },
+    { creator: 'Indie Band', title: 'Cool Album' }
+  );
+  assert.ok(archiveTrack);
+  assert.equal(archiveTrack.source, 'archive');
+  assert.equal(archiveTrack.title, 'Summer Nights');
+  assert.equal(archiveTrack.artist, 'Indie Band');
+  assert.equal(archiveTrack.durationSec, 225);
+  assert.ok(archiveTrack.audioUrl.includes('archive.org/download/cool-album-2024/'));
+
+  const itunesTrack = normalizeItunesTrack({
+    trackId: 778899,
+    trackName: 'Komang',
+    artistName: 'Raim Laode',
+    collectionName: 'Komang - Single',
+    primaryGenreName: 'Pop',
+    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/sample.m4a',
+    artworkUrl100: 'https://is1-ssl.mzstatic.com/image/thumb/100x100bb.jpg',
+    trackTimeMillis: 222000,
+  });
+  assert.ok(itunesTrack);
+  assert.equal(itunesTrack.source, 'itunes');
+  assert.equal(itunesTrack.isPreview, true);
+  assert.equal(itunesTrack.durationSec, 30);
+});
+
+test('isSafeAudioProxyUrl allows trusted https music hosts and blocks untrusted/private/IPv6 URLs', () => {
   assert.equal(
     isSafeAudioProxyUrl('https://api.audius.co/v1/tracks/1/stream'),
     true
@@ -176,15 +261,33 @@ test('isSafeAudioProxyUrl allows https music hosts and blocks private/non-https 
     true
   );
   assert.equal(
+    isSafeAudioProxyUrl('https://prod-1.storage.jamendo.com/?trackid=123&format=mp32'),
+    true
+  );
+  assert.equal(
+    isSafeAudioProxyUrl('https://archive.org/download/sample/song.mp3'),
+    true
+  );
+  assert.equal(
     isSafeAudioProxyUrl('http://api.audius.co/v1/tracks/1/stream'),
     false
   );
   assert.equal(isSafeAudioProxyUrl('https://localhost:3000/secret'), false);
+  assert.equal(isSafeAudioProxyUrl('https://[::1]/secret'), false);
+  assert.equal(isSafeAudioProxyUrl('https://169.254.169.254/latest/meta-data'), false);
+  assert.equal(isSafeAudioProxyUrl('https://evil.example.com/payload.mp3'), false);
+
+  const approved = new Set(['https://custom-radio.example.org/live.mp3']);
+  assert.equal(
+    isSafeAudioProxyUrl('https://custom-radio.example.org/live.mp3', approved),
+    true
+  );
 });
 
-test('sanitizeDownloadFilename strips invalid path characters', () => {
+test('sanitizeDownloadFilename strips invalid path and header characters', () => {
   assert.equal(
-    sanitizeDownloadFilename('Song/Name:1?', 'Artist*'),
+    sanitizeDownloadFilename('Song/Name:1?;\r\n', "Artist*'"),
     'Artist - SongName1.mp3'
   );
 });
+

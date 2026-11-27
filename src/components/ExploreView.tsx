@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
-  ArrowDownToLine,
   ExternalLink,
+  FileDown,
   FolderSync,
   Link2,
   Play,
@@ -20,18 +20,42 @@ import { CoverArtwork, TrackPhotoBackground } from './CoverArtwork';
 import { TrackListItem } from './TrackListItem';
 
 const GENRE_FILTERS = [
-  { id: 'all', label: 'Semua (320+)' },
-  { id: 'ytmusic', label: 'YouTube Music' },
+  { id: 'all', label: 'Semua' },
+  { id: 'audius', label: 'Audius Free' },
+  { id: 'jamendo', label: 'Jamendo CC' },
+  { id: 'hearthis', label: 'Hearthis' },
+  { id: 'archive', label: 'Archive MP3' },
+  { id: 'ytmusic', label: 'YT Music' },
   { id: 'drive', label: 'Google Drive' },
-  { id: 'audius', label: 'Audius' },
   { id: 'radio', label: 'Radio ID' },
-  { id: 'jamendo', label: 'Jamendo' },
   { id: 'trending', label: 'Trending' },
   { id: 'indonesia', label: 'Lagu Indo' },
   { id: 'pop', label: 'Pop Indo' },
   { id: 'barat', label: 'Barat Hits' },
   { id: 'viral', label: 'Viral TikTok' },
   { id: 'chill', label: 'Chill' },
+] as const;
+
+const AUDIUS_SUB_GENRES = [
+  { id: '', label: 'Trending' },
+  { id: 'Pop', label: 'Pop' },
+  { id: 'Lo-Fi', label: 'Lo-Fi' },
+  { id: 'Electronic', label: 'Electronic' },
+  { id: 'Hip-Hop/Rap', label: 'Hip-Hop' },
+  { id: 'Acoustic', label: 'Acoustic' },
+  { id: 'Rock', label: 'Rock' },
+  { id: 'R&B/Soul', label: 'R&B' },
+  { id: 'Jazz', label: 'Jazz' },
+  { id: 'underground', label: 'Underground' },
+] as const;
+
+const QUICK_SEARCH_CHIPS = [
+  'Tulus',
+  'Lo-Fi Chill',
+  'Acoustic',
+  'Jazz',
+  'Electronic',
+  'Bernadya',
 ] as const;
 
 interface ExploreViewProps {
@@ -41,6 +65,8 @@ interface ExploreViewProps {
   onSearchChange: (q: string) => void;
   activeGenre: string;
   onSelectGenre: (genre: string) => void;
+  audiusGenre?: string;
+  onSelectAudiusGenre?: (subGenre: string) => void;
   driveFolderUrl: string;
   onSyncDriveFolder: (folderUrl: string) => void;
   isLoadingApi: boolean;
@@ -86,6 +112,8 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
   onSearchChange,
   activeGenre,
   onSelectGenre,
+  audiusGenre = '',
+  onSelectAudiusGenre,
   driveFolderUrl,
   onSyncDriveFolder,
   isLoadingApi,
@@ -116,11 +144,41 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
 }) => {
   const [showDriveInput, setShowDriveInput] = useState(false);
   const [customDriveInput, setCustomDriveInput] = useState(driveFolderUrl);
+  const [searchSourceFilter, setSearchSourceFilter] = useState<string>('all');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setCustomDriveInput(driveFolderUrl);
   }, [driveFolderUrl]);
+
+  useEffect(() => {
+    setSearchSourceFilter('all');
+  }, [searchQuery]);
+
+  const searchSourceCounts = useMemo(() => {
+    if (!searchQuery.trim() || isOfflineMode) return null;
+    const counts: Record<string, number> = { all: tracks.length };
+    for (const t of tracks) {
+      const bucket =
+        t.source === 'openverse' || t.source === 'jamendo'
+          ? 'jamendo'
+          : t.source || 'local';
+      counts[bucket] = (counts[bucket] || 0) + 1;
+    }
+    return counts;
+  }, [isOfflineMode, searchQuery, tracks]);
+
+  const visibleTracks = useMemo(() => {
+    if (!searchQuery.trim() || isOfflineMode || searchSourceFilter === 'all') {
+      return tracks;
+    }
+    return tracks.filter((t) => {
+      if (searchSourceFilter === 'jamendo') {
+        return t.source === 'jamendo' || t.source === 'openverse';
+      }
+      return (t.source || 'local') === searchSourceFilter;
+    });
+  }, [isOfflineMode, searchQuery, searchSourceFilter, tracks]);
 
   const showFeaturedSpotlight =
     !isOfflineMode &&
@@ -151,7 +209,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
           placeholder={
             isOfflineMode
               ? 'Cari lagu tersimpan offline...'
-              : 'Cari di YouTube Music & Drive (Bernadya, Tulus, Sheila On 7...)'
+              : 'Cari lagu gratis (Audius, Jamendo CC, Hearthis, Archive, Drive, YT)...'
           }
           aria-label="Search music catalog"
           className="w-full h-11 pl-10 pr-10 rounded-xl dynamic-glass-input text-sm text-[#F8FAFC] placeholder:text-[#94A3B8] focus:outline-none transition-all"
@@ -200,10 +258,10 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-[#F8FAFC] truncate">
-                  Drive · YT Music · Audius · Radio · LRCLIB
+                  Audius · Jamendo CC · Hearthis · Archive · Drive
                 </p>
                 <p className="text-[11px] text-[#94A3B8] truncate">
-                  168 Drive · Live Search · Lirik Sinkron{jamendoConfigured ? ' · Jamendo' : ''}
+                  Streaming Gratis · Download MP3 Langsung · Lirik Sinkron
                 </p>
               </div>
             </div>
@@ -347,39 +405,107 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
         </div>
       )}
 
-      {/* Interactive Genre Filter Chips (Dynamic Glass Rail) */}
+      {/* Interactive Genre / Source Filter Chips (Dynamic Glass Rail) */}
       {!isOfflineMode && !searchQuery.trim() && (
+        <div className="space-y-2">
+          <div
+            role="tablist"
+            aria-label="Music sources and genres"
+            className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar"
+          >
+            {GENRE_FILTERS.map((g) => {
+              const isActive = activeGenre === g.id;
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => onSelectGenre(g.id)}
+                  className={`relative h-9 px-3.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[#10B981] ${
+                    isActive
+                      ? 'text-[#0B0F17]'
+                      : 'dynamic-glass-button text-[#CBD5E1] hover:text-[#F8FAFC]'
+                  }`}
+                >
+                  {isActive && (
+                    <motion.span
+                      layoutId="active-genre-bg"
+                      transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                      className="absolute inset-0 rounded-xl bg-gradient-to-r from-[#10B981] to-[#34D399] shadow-[0_4px_14px_rgba(16,185,129,0.3)]"
+                    />
+                  )}
+                  <span className="relative z-10">{g.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Sub-genre selector for Audius Free Streaming API */}
+          {activeGenre === 'audius' && onSelectAudiusGenre && (
+            <div
+              aria-label="Audius genres"
+              className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar"
+            >
+              {AUDIUS_SUB_GENRES.map((sub) => {
+                const selected = audiusGenre === sub.id;
+                return (
+                  <button
+                    key={sub.id || 'trending'}
+                    type="button"
+                    onClick={() => onSelectAudiusGenre(sub.id)}
+                    className={`h-7 px-3 rounded-lg text-[11px] font-medium whitespace-nowrap shrink-0 transition-colors ${
+                      selected
+                        ? 'bg-[#10B981]/20 border border-[#10B981]/45 text-[#10B981]'
+                        : 'bg-white/[0.05] border border-white/[0.08] text-[#94A3B8] hover:text-[#F8FAFC]'
+                    }`}
+                  >
+                    {sub.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Multi-API Search Source Filter Pills */}
+      {!isOfflineMode && searchQuery.trim() && !isLoadingApi && searchSourceCounts && tracks.length > 0 && (
         <div
-          role="tablist"
-          aria-label="Music genres"
-          className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar"
+          aria-label="Filter search results by source"
+          className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar"
         >
-          {GENRE_FILTERS.map((g) => {
-            const isActive = activeGenre === g.id;
-            return (
-              <button
-                key={g.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => onSelectGenre(g.id)}
-                className={`relative h-9 px-3.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[#10B981] ${
-                  isActive
-                    ? 'text-[#0B0F17]'
-                    : 'dynamic-glass-button text-[#CBD5E1] hover:text-[#F8FAFC]'
-                }`}
-              >
-                {isActive && (
-                  <motion.span
-                    layoutId="active-genre-bg"
-                    transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-                    className="absolute inset-0 rounded-xl bg-gradient-to-r from-[#10B981] to-[#34D399] shadow-[0_4px_14px_rgba(16,185,129,0.3)]"
-                  />
-                )}
-                <span className="relative z-10">{g.label}</span>
-              </button>
-            );
-          })}
+          {(
+            [
+              { id: 'all', label: 'Semua' },
+              { id: 'audius', label: 'Audius' },
+              { id: 'jamendo', label: 'Jamendo CC' },
+              { id: 'hearthis', label: 'Hearthis' },
+              { id: 'archive', label: 'Archive' },
+              { id: 'gdrive', label: 'Drive' },
+              { id: 'ytmusic', label: 'YT Music' },
+              { id: 'itunes', label: 'Preview' },
+            ] as const
+          )
+            .filter((item) => item.id === 'all' || (searchSourceCounts[item.id] || 0) > 0)
+            .map((item) => {
+              const count = searchSourceCounts[item.id] || 0;
+              const isSelected = searchSourceFilter === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSearchSourceFilter(item.id)}
+                  className={`h-8 px-3 rounded-xl text-[11px] font-semibold whitespace-nowrap shrink-0 transition-colors ${
+                    isSelected
+                      ? 'bg-[#10B981] text-[#0B0F17]'
+                      : 'dynamic-glass-button text-[#CBD5E1] hover:text-[#F8FAFC]'
+                  }`}
+                >
+                  {item.label} ({count})
+                </button>
+              );
+            })}
         </div>
       )}
 
@@ -419,18 +545,27 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                   : featuredTrack.source === 'github'
                   ? 'GitHub Repository Audio'
                   : featuredTrack.source === 'audius'
-                  ? 'Audius Free MP3'
+                  ? 'Audius Free Full MP3'
+                  : featuredTrack.source === 'hearthis'
+                  ? 'Hearthis Free Full MP3'
+                  : featuredTrack.source === 'archive'
+                  ? 'Internet Archive Free MP3'
+                  : featuredTrack.source === 'openverse'
+                  ? 'Openverse CC Free MP3'
                   : featuredTrack.source === 'radio'
                   ? 'Radio Streaming Live ID'
                   : featuredTrack.source === 'jamendo'
-                  ? 'Jamendo Free MP3'
+                  ? 'Jamendo Free CC MP3'
                   : 'Featured Track'}
               </p>
               <h2 className="text-base font-bold text-[#F8FAFC] truncate mt-0.5">
                 {featuredTrack.title}
               </h2>
               <p className="text-[13px] text-[#CBD5E1]/85 truncate">
-                {featuredTrack.artist} · {formatTime(featuredTrack.durationSec)}
+                {featuredTrack.artist} ·{' '}
+                {featuredTrack.source === 'radio'
+                  ? 'LIVE'
+                  : formatTime(featuredTrack.durationSec)}
               </p>
               <div className="flex items-center gap-2 mt-2.5">
                 <button
@@ -440,16 +575,21 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                   className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-[#10B981] hover:bg-[#059669] active:scale-95 text-[#0B0F17] text-xs font-semibold shadow-sm shadow-[#10B981]/25 transition-all whitespace-nowrap shrink-0"
                 >
                   <Play size={14} fill="currentColor" />
-                  <span>Putar Sekarang</span>
+                  <span>Putar</span>
                 </button>
-                {!downloadedIds.has(featuredTrack.id) && (
+                {featuredTrack.source !== 'radio' && !featuredTrack.id.startsWith('radio-') && (
                   <button
                     type="button"
-                    onClick={() => onDownloadTrack(featuredTrack)}
-                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl dynamic-glass-button active:scale-95 text-[#F8FAFC] text-xs font-medium transition-all whitespace-nowrap shrink-0"
+                    onClick={() => onSaveFileToDevice(featuredTrack)}
+                    disabled={typeof downloadProgressMap[featuredTrack.id] === 'number'}
+                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl dynamic-glass-button active:scale-95 text-[#F8FAFC] text-xs font-medium transition-all whitespace-nowrap shrink-0 disabled:opacity-60"
                   >
-                    <ArrowDownToLine size={14} />
-                    <span>Simpan Offline</span>
+                    <FileDown size={14} className="text-[#10B981]" />
+                    <span>
+                      {typeof downloadProgressMap[featuredTrack.id] === 'number'
+                        ? `${downloadProgressMap[featuredTrack.id]}%`
+                        : 'Unduh MP3'}
+                    </span>
                   </button>
                 )}
               </div>
@@ -467,21 +607,25 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                 ? 'Lagu Tersimpan Offline'
                 : isLoadingApi
                 ? searchQuery.trim()
-                  ? 'Mencari di Drive, YT Music & Jamendo...'
+                  ? 'Mencari di 6+ API Musik Gratis...'
                   : 'Memuat Koleksi Musik...'
                 : searchQuery
-                ? 'Hasil Pencarian (Drive + YT Music + Jamendo)'
+                ? 'Hasil Pencarian Multi-API'
                 : activeGenre === 'ytmusic'
                 ? 'Koleksi YouTube Music & Online Hits'
                 : activeGenre === 'drive'
                 ? 'Koleksi Google Drive / GitHub'
                 : activeGenre === 'audius'
-                ? 'Koleksi Audius Trending (Gratis)'
+                ? `Audius Free MP3${audiusGenre ? ` · ${audiusGenre}` : ' · Trending'}`
+                : activeGenre === 'hearthis'
+                ? 'Hearthis.at Free Full MP3 & Mix'
+                : activeGenre === 'archive'
+                ? 'Internet Archive Free MP3 (Public Domain)'
                 : activeGenre === 'radio'
                 ? 'Radio Streaming Indonesia (Live)'
                 : activeGenre === 'jamendo'
-                ? 'Koleksi Jamendo Music API'
-                : 'Koleksi Lengkap (Drive + YT Music + Online)'}
+                ? 'Jamendo Creative Commons Free MP3'
+                : 'Koleksi Lengkap (Free MP3 & Online)'}
             </h2>
           </div>
 
@@ -511,7 +655,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
             )}
             {!isLoadingApi && (
               <span className="text-xs font-mono tabular-nums text-[#94A3B8]">
-                {tracks.length} lagu
+                {visibleTracks.length} lagu
               </span>
             )}
           </div>
@@ -532,7 +676,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
               </div>
             ))}
           </div>
-        ) : tracks.length === 0 ? (
+        ) : visibleTracks.length === 0 ? (
           <div className="rounded-2xl bg-[#131A26] border border-[#1E293B] p-8 text-center space-y-3">
             {isOfflineMode ? (
               <>
@@ -543,7 +687,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                     : 'Belum ada lagu offline'}
                 </p>
                 <p className="text-xs text-[#94A3B8]">
-                  Kembali ke Mode Online untuk memutar dan mengunduh 320+ lagu dari Google Drive &amp; YouTube Music.
+                  Kembali ke Mode Online untuk memutar dan mengunduh lagu gratis dari Audius, Jamendo CC, Hearthis, Archive, &amp; Drive.
                 </p>
                 <button
                   type="button"
@@ -558,19 +702,19 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                 <Radio size={28} className="mx-auto text-[#10B981]" />
                 <p className="text-sm font-medium text-[#F8FAFC]">
                   {jamendoConfigured
-                    ? 'Belum ada lagu Jamendo yang termuat'
-                    : 'Jamendo API Membutuhkan JAMENDO_CLIENT_ID'}
+                    ? 'Belum ada lagu Jamendo / Openverse yang termuat'
+                    : 'Gagal memuat Jamendo Free CC'}
                 </p>
                 <p className="text-xs text-[#94A3B8] max-w-xs mx-auto leading-relaxed">
                   {jamendoError ||
-                    'Daftar gratis di devportal.jamendo.com untuk mendapatkan Client ID, lalu tambahkan ke Secrets dengan nama JAMENDO_CLIENT_ID.'}
+                    'Katalog Jamendo Creative Commons diakses gratis otomatis via Openverse. Coba muat ulang beberapa saat lagi.'}
                 </p>
                 <button
                   type="button"
                   onClick={onRefreshFeed}
                   className="inline-flex items-center justify-center h-10 px-4 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-[#F8FAFC] text-xs font-medium transition-colors"
                 >
-                  Muat Ulang Jamendo
+                  Muat Ulang Jamendo CC
                 </button>
               </>
             ) : activeGenre === 'drive' && !searchQuery.trim() ? (
@@ -610,21 +754,45 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
               <>
                 <Search size={28} className="mx-auto text-[#94A3B8]" />
                 <p className="text-sm font-medium text-[#F8FAFC]">
-                  Tidak ditemukan lagu untuk &ldquo;{searchQuery}&rdquo;
+                  {searchQuery
+                    ? `Tidak ditemukan lagu untuk "${searchQuery}"`
+                    : 'Belum ada lagu termuat untuk kategori ini'}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => onSearchChange('')}
-                  className="inline-flex items-center justify-center h-10 px-4 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-[#F8FAFC] text-xs font-medium transition-colors"
-                >
-                  Reset Pencarian
-                </button>
+                <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+                  {QUICK_SEARCH_CHIPS.map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => onSearchChange(chip)}
+                      className="h-7 px-2.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.1] text-[11px] text-[#CBD5E1]"
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => onSearchChange('')}
+                    className="inline-flex items-center justify-center h-10 px-4 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-[#F8FAFC] text-xs font-medium transition-colors"
+                  >
+                    Reset Pencarian
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onRefreshFeed}
+                    className="inline-flex items-center justify-center h-10 px-4 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-[#F8FAFC] text-xs font-medium transition-colors"
+                  >
+                    Muat Ulang
+                  </button>
+                )}
               </>
             )}
           </div>
         ) : (
           <div className="space-y-1">
-            {tracks.map((track) => (
+            {visibleTracks.map((track) => (
               <TrackListItem
                 key={track.id}
                 track={track}

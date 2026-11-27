@@ -18,10 +18,13 @@ import {
   extractDriveResourceKey,
   extractGitHubRepoSource,
   isSafeAudioProxyUrl,
+  normalizeArchiveTrack,
   normalizeAudiusTrack,
   normalizeDriveTrack,
   normalizeHearthisTrack,
+  normalizeItunesTrack,
   normalizeJamendoTrack,
+  normalizeOpenverseTrack,
   normalizeRadioStationTrack,
   parseDriveAudioFilename,
   parseDriveEmbeddedFolderHtml,
@@ -29,15 +32,20 @@ import {
   parseLrcLyrics,
   parseYouTubeMusicSearchResponse,
   sanitizeDownloadFilename,
+  type RawArchiveFile,
   type RawAudiusTrack,
   type RawHearthisTrack,
+  type RawItunesTrack,
   type RawJamendoTrack,
+  type RawOpenverseTrack,
   type RawRadioStation,
   type SyncedLyricLine,
 } from './src/utils/musicNormalizer.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const STATIC_TRACKS_DIR = path.resolve(__dirname, 'public/audio/tracks');
+const PUBLIC_AUDIO_DIR = path.resolve(__dirname, 'public/audio');
 
 const PORT = Number(process.env.PORT) || 3000;
 const IS_PROD = process.env.NODE_ENV === 'production';
@@ -56,9 +64,32 @@ const ALL_INDEXED_TRACKS: Track[] = [
 ];
 
 const ALL_INDEXED_MAP = new Map<string, Track>();
-for (const t of ALL_INDEXED_TRACKS) {
-  ALL_INDEXED_MAP.set(t.id, t);
+const APPROVED_STREAM_URLS = new Set<string>();
+const MAX_DYNAMIC_INDEXED_TRACKS = 4000;
+
+function registerDiscoveredTracks(tracks: Track[]): void {
+  for (const t of tracks) {
+    if (!t?.id) continue;
+    if (ALL_INDEXED_MAP.size >= MAX_DYNAMIC_INDEXED_TRACKS && !ALL_INDEXED_MAP.has(t.id)) {
+      const oldestKey = ALL_INDEXED_MAP.keys().next().value;
+      if (oldestKey && !PRE_ENRICHED_DRIVE_MAP.has(oldestKey)) {
+        ALL_INDEXED_MAP.delete(oldestKey);
+      }
+    }
+    ALL_INDEXED_MAP.set(t.id, t);
+    if (t.audioUrl && t.audioUrl.startsWith('https://')) {
+      if (APPROVED_STREAM_URLS.size >= MAX_DYNAMIC_INDEXED_TRACKS) {
+        const oldestUrl = APPROVED_STREAM_URLS.values().next().value;
+        if (oldestUrl) APPROVED_STREAM_URLS.delete(oldestUrl);
+      }
+      APPROVED_STREAM_URLS.add(t.audioUrl);
+      const normalized = t.audioUrl.replace(/^https:\/\/hearthis\.app\//i, 'https://hearthis.at/');
+      APPROVED_STREAM_URLS.add(normalized);
+    }
+  }
 }
+
+registerDiscoveredTracks(ALL_INDEXED_TRACKS);
 
 // Cache of synced Google Drive folders (folderId -> { updatedAt, tracks })
 const driveFolderCache = new Map<
@@ -69,8 +100,24 @@ const driveFolderCache = new Map<
 // Cache of resolved audio URLs for YouTube Music tracks (key -> resolved upstream audio URL)
 const ytmAudioUrlCache = new Map<string, string>();
 
-// Jamendo API v3.0 configuration & short-TTL query cache
+// Short-TTL query caches for free music APIs
 const jamendoQueryCache = new Map<
+  string,
+  { updatedAt: number; tracks: Track[] }
+>();
+const openverseQueryCache = new Map<
+  string,
+  { updatedAt: number; tracks: Track[] }
+>();
+const archiveQueryCache = new Map<
+  string,
+  { updatedAt: number; tracks: Track[] }
+>();
+const hearthisFeedCache = new Map<
+  string,
+  { updatedAt: number; tracks: Track[] }
+>();
+const audiusFeedCache = new Map<
   string,
   { updatedAt: number; tracks: Track[] }
 >();
@@ -597,12 +644,211 @@ async function searchHearthisTracks(
   try {
     const rawList = await fetchJsonWithTimeout<RawHearthisTrack[]>(
       `https://api-v2.hearthis.at/search?t=${encodeURIComponent(query)}&page=1&count=${limit}`,
-      4000
+      4500
     );
     if (!Array.isArray(rawList)) return [];
-    return rawList
-      .map(normalizeHearthisTrack)
+    const tracks = rawList
+      .map((item) => normalizeHearthisTrack(item, { source: 'hearthis', maxDurationSec: 600 }))
       .filter((t): t is Track => t !== null);
+    registerDiscoveredTracks(tracks);
+    return tracks;
+  } catch {
+    return [];
+  }
+}
+
+async function fetchHearthisFeedTracks(
+  type: 'popular' | 'new' = 'popular',
+  limit = 25
+): Promise<Track[]> {
+  const cacheKey = `${type}::${limit}`;
+  const cached = hearthisFeedCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && now - cached.updatedAt < 4 * 60 * 1000) {
+    return cached.tracks;
+  }
+
+  try {
+    const [feedRes, popSearchRes] = await Promise.all([
+      fetchJsonWithTimeout<RawHearthisTrack[]>(
+        `https://api-v2.hearthis.at/feed/?type=${encodeURIComponent(type)}&page=1&count=${Math.min(30, limit + 8)}`,
+        5000
+      ).catch(() => [] as RawHearthisTrack[]),
+      fetchJsonWithTimeout<RawHearthisTrack[]>(
+        `https://api-v2.hearthis.at/search?t=${encodeURIComponent('acoustic pop chill')}&page=1&count=12`,
+        4500
+      ).catch(() => [] as RawHearthisTrack[]),
+    ]);
+
+    const shortTracks = (Array.isArray(popSearchRes) ? popSearchRes : [])
+      .map((item) => normalizeHearthisTrack(item, { source: 'hearthis', maxDurationSec: 600 }))
+      .filter((t): t is Track => t !== null);
+
+    const feedTracks = (Array.isArray(feedRes) ? feedRes : [])
+      .map((item) => normalizeHearthisTrack(item, { source: 'hearthis', maxDurationSec: 5400 }))
+      .filter((t): t is Track => t !== null);
+
+    const tracks = dedupeTracks([...shortTracks, ...feedTracks]).slice(0, limit);
+    registerDiscoveredTracks(tracks);
+    if (tracks.length > 0) {
+      hearthisFeedCache.set(cacheKey, { updatedAt: now, tracks });
+    }
+    return tracks;
+  } catch {
+    return cached?.tracks ?? [];
+  }
+}
+
+// Query Openverse Audio API (Zero API key — indexes Creative Commons full MP3s from Jamendo & Wikimedia)
+async function fetchOpenverseTracks(options: {
+  query?: string;
+  source?: string;
+  limit?: number;
+}): Promise<Track[]> {
+  const q = (options.query || '').trim();
+  const source = (options.source || '').trim();
+  const limit = Math.min(20, Math.max(5, options.limit || 20));
+  const cacheKey = `${q.toLowerCase()}::${source.toLowerCase()}::${limit}`;
+  const cached = openverseQueryCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && now - cached.updatedAt < 6 * 60 * 1000) {
+    return cached.tracks;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      category: 'music',
+      page_size: String(limit),
+    });
+    if (q) {
+      params.set('q', q);
+    }
+    if (source) {
+      params.set('source', source);
+    }
+
+    const res = await fetchJsonWithTimeout<{ results?: RawOpenverseTrack[] }>(
+      `https://api.openverse.org/v1/audio/?${params.toString()}`,
+      8500
+    );
+    const rawList = Array.isArray(res?.results) ? res.results : [];
+    const tracks = dedupeTracks(
+      rawList
+        .map((item, idx) => normalizeOpenverseTrack(item, idx))
+        .filter((t): t is Track => t !== null)
+    );
+    registerDiscoveredTracks(tracks);
+    if (tracks.length > 0) {
+      openverseQueryCache.set(cacheKey, { updatedAt: now, tracks });
+    }
+    return tracks;
+  } catch {
+    return cached?.tracks ?? [];
+  }
+}
+
+// Query Internet Archive Open Audio API (Zero API key — legal full MP3s)
+async function fetchInternetArchiveTracks(
+  query = '',
+  limit = 16
+): Promise<Track[]> {
+  const q = query.trim();
+  const cacheKey = `${q.toLowerCase()}::${limit}`;
+  const cached = archiveQueryCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && now - cached.updatedAt < 10 * 60 * 1000) {
+    return cached.tracks;
+  }
+
+  try {
+    const safeQueryTerm = q.replace(/[^\p{L}\p{N}\s-]/gu, ' ').trim();
+    const searchExpr = safeQueryTerm
+      ? `mediatype:audio AND collection:(audio_music OR netlabels OR opensource_audio) AND (${safeQueryTerm})`
+      : `mediatype:audio AND collection:(netlabels OR audio_music) AND (jazz OR acoustic OR lo-fi OR chill OR indie OR piano)`;
+
+    const searchUrl = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(
+      searchExpr
+    )}&fl[]=identifier,title,creator,downloads&sort[]=downloads+desc&rows=6&output=json`;
+
+    const searchRes = await fetchJsonWithTimeout<{
+      response?: {
+        docs?: Array<{
+          identifier?: string;
+          title?: string;
+          creator?: string | string[];
+        }>;
+      };
+    }>(searchUrl, 6000);
+
+    const docs = Array.isArray(searchRes?.response?.docs)
+      ? searchRes.response.docs.filter((d) => Boolean(d.identifier))
+      : [];
+    if (docs.length === 0) return cached?.tracks ?? [];
+
+    const metaList = await Promise.all(
+      docs.slice(0, 5).map(async (doc) => {
+        const id = String(doc.identifier);
+        try {
+          const filesRes = await fetchJsonWithTimeout<{ result?: RawArchiveFile[] }>(
+            `https://archive.org/metadata/${encodeURIComponent(id)}/files`,
+            5000
+          );
+          const files = Array.isArray(filesRes?.result) ? filesRes.result : [];
+          const mp3s = files
+            .filter(
+              (f) =>
+                /\.mp3$/i.test(f.name || '') &&
+                !/(_64kb|_vbr_mp3\.zip|sample|preview)/i.test(f.name || '')
+            )
+            .slice(0, 4);
+          return mp3s
+            .map((file, idx) =>
+              normalizeArchiveTrack(
+                id,
+                file,
+                {
+                  title: doc.title,
+                  creator: Array.isArray(doc.creator) ? doc.creator[0] : doc.creator,
+                },
+                idx
+              )
+            )
+            .filter((t): t is Track => t !== null);
+        } catch {
+          return [] as Track[];
+        }
+      })
+    );
+
+    const tracks = dedupeTracks(metaList.flat()).slice(0, limit);
+    registerDiscoveredTracks(tracks);
+    if (tracks.length > 0) {
+      archiveQueryCache.set(cacheKey, { updatedAt: now, tracks });
+    }
+    return tracks;
+  } catch {
+    return cached?.tracks ?? [];
+  }
+}
+
+// Query iTunes Search API for metadata & 30s official preview fallback
+async function fetchItunesPreviewTracks(
+  query: string,
+  limit = 6
+): Promise<Track[]> {
+  const q = query.trim();
+  if (!q) return [];
+  try {
+    const data = await fetchJsonWithTimeout<{ results?: RawItunesTrack[] }>(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&country=ID&entity=song&limit=${limit}`,
+      4000
+    );
+    const results = Array.isArray(data?.results) ? data.results : [];
+    const tracks = results
+      .map((item, idx) => normalizeItunesTrack(item, idx))
+      .filter((t): t is Track => t !== null);
+    registerDiscoveredTracks(tracks);
+    return tracks;
   } catch {
     return [];
   }
@@ -637,51 +883,46 @@ async function resolveYouTubeMusicAudioUrl(
 
   if (indexedMatch && indexedMatch.audioUrl.startsWith('https://')) {
     ytmAudioUrlCache.set(cacheKey, indexedMatch.audioUrl);
+    APPROVED_STREAM_URLS.add(indexedMatch.audioUrl);
     return indexedMatch.audioUrl;
   }
 
   const cleanQ = `${artist} ${title}`.replace(/\(.*?\)|\[.*?\]/g, '').trim();
+  const titleWords = normTitle.split(/\s+/).filter((w) => w.length > 2);
+  const artistWords = normArtist.split(/\s+/).filter((w) => w.length > 2);
 
-  // 2. Try Hearthis.at full MP3 (strict Artist + Title match)
+  // 2. Try Hearthis.at full MP3 (strict Artist + Title match, spam-filtered)
   try {
-    const rawList = await fetchJsonWithTimeout<RawHearthisTrack[]>(
-      `https://api-v2.hearthis.at/search?t=${encodeURIComponent(cleanQ)}&page=1&count=6`,
-      3800
-    );
-    if (Array.isArray(rawList)) {
-      const titleWords = normTitle.split(/\s+/).filter((w) => w.length > 2);
-      const artistWords = normArtist.split(/\s+/).filter((w) => w.length > 2);
-      const hit = rawList.find((item) => {
-        const d = Number(item.duration || 0);
-        const itemTitle = String(item.title || '').toLowerCase();
-        const hasTitle =
-          titleWords.length === 0 || titleWords.some((w) => itemTitle.includes(w));
-        const hasArtist =
-          artistWords.length === 0 || artistWords.some((w) => itemTitle.includes(w));
-        return d >= 90 && d <= 540 && Boolean(item.stream_url) && hasTitle && hasArtist;
-      });
-      if (hit?.stream_url) {
-        ytmAudioUrlCache.set(cacheKey, hit.stream_url);
-        return hit.stream_url;
-      }
+    const htTracks = await searchHearthisTracks(cleanQ, 8);
+    const hit = htTracks.find((item) => {
+      const combined = `${item.artist} ${item.title}`.toLowerCase();
+      const hasTitle =
+        titleWords.length === 0 || titleWords.some((w) => combined.includes(w));
+      const hasArtist =
+        artistWords.length === 0 || artistWords.some((w) => combined.includes(w));
+      return item.durationSec >= 90 && item.durationSec <= 540 && hasTitle && hasArtist;
+    });
+    if (hit?.audioUrl) {
+      ytmAudioUrlCache.set(cacheKey, hit.audioUrl);
+      APPROVED_STREAM_URLS.add(hit.audioUrl);
+      return hit.audioUrl;
     }
   } catch {
     // Continue to next tier
   }
 
-  // 3. Try Audius full MP3 stream (minimum 120s full track)
+  // 3. Try Audius full MP3 stream (minimum 90s full track)
   try {
     const audiusRes = await fetchJsonWithTimeout<{ data?: RawAudiusTrack[] }>(
       `https://api.audius.co/v1/tracks/search?query=${encodeURIComponent(cleanQ)}&limit=6&app_name=ReyTune`,
       3800
     );
     const list = audiusRes?.data || [];
-    const titleWords = normTitle.split(/\s+/).filter((w) => w.length > 2);
     const hit = list.find((item) => {
       const d = Number(item.duration || 0);
       const itemTitle = String(item.title || '').toLowerCase();
       return (
-        d >= 120 &&
+        d >= 90 &&
         d <= 540 &&
         Boolean(item.id) &&
         titleWords.some((w) => itemTitle.includes(w))
@@ -690,17 +931,45 @@ async function resolveYouTubeMusicAudioUrl(
     if (hit?.id) {
       const streamUrl = `https://api.audius.co/v1/tracks/${encodeURIComponent(String(hit.id))}/stream?app_name=ReyTune`;
       ytmAudioUrlCache.set(cacheKey, streamUrl);
+      APPROVED_STREAM_URLS.add(streamUrl);
       return streamUrl;
     }
   } catch {
     // Continue to next tier
   }
 
-  // 4. Fallback to full-length track by same artist from Google Drive or Online Full MP3 catalog
-  const artistFullFallback =
-    ALL_INDEXED_TRACKS.find((t) =>
-      t.artist.toLowerCase().includes(normArtist)
-    ) || DRIVE_FOLDER_TRACKS[0];
+  // 4. Try Openverse / Jamendo full MP3 stream
+  try {
+    const ovTracks = await fetchOpenverseTracks({ query: cleanQ, limit: 5 });
+    const hit = ovTracks.find((item) => {
+      const combined = `${item.artist} ${item.title}`.toLowerCase();
+      return titleWords.some((w) => combined.includes(w));
+    });
+    if (hit?.audioUrl) {
+      ytmAudioUrlCache.set(cacheKey, hit.audioUrl);
+      APPROVED_STREAM_URLS.add(hit.audioUrl);
+      return hit.audioUrl;
+    }
+  } catch {
+    // Continue to next tier
+  }
+
+  // 5. Try iTunes official audio preview for the exact requested song (never play an unrelated song!)
+  try {
+    const itunesHits = await fetchItunesPreviewTracks(cleanQ, 3);
+    if (itunesHits[0]?.audioUrl) {
+      ytmAudioUrlCache.set(cacheKey, itunesHits[0].audioUrl);
+      APPROVED_STREAM_URLS.add(itunesHits[0].audioUrl);
+      return itunesHits[0].audioUrl;
+    }
+  } catch {
+    // Continue to final fallback
+  }
+
+  // 6. Fallback only if same artist exists in full-length indexed catalog
+  const artistFullFallback = ALL_INDEXED_TRACKS.find((t) =>
+    t.artist.toLowerCase().includes(normArtist)
+  );
   return artistFullFallback?.audioUrl || null;
 }
 
@@ -1184,22 +1453,45 @@ async function getDriveFolderTracks(
   }
 }
 
-async function fetchAudiusTracks(query: string, limit = 15): Promise<Track[]> {
+async function fetchAudiusTracks(
+  query: string,
+  limit = 15,
+  audiusGenre = ''
+): Promise<Track[]> {
+  const g = audiusGenre.trim();
+  const cacheKey = `${query.toLowerCase()}::${g.toLowerCase()}::${limit}`;
+  const cached = audiusFeedCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && now - cached.updatedAt < 4 * 60 * 1000) {
+    return cached.tracks;
+  }
+
   try {
-    const url =
-      query === 'trending'
-        ? `https://api.audius.co/v1/tracks/trending?limit=${limit}&app_name=ReyTune`
-        : `https://api.audius.co/v1/tracks/search?query=${encodeURIComponent(query)}&limit=${limit}&app_name=ReyTune`;
+    let url: string;
+    if (query === 'trending') {
+      url = g && g.toLowerCase() !== 'all'
+        ? `https://api.audius.co/v1/tracks/trending?genre=${encodeURIComponent(g)}&limit=${limit}&app_name=ReyTune`
+        : `https://api.audius.co/v1/tracks/trending?limit=${limit}&app_name=ReyTune`;
+    } else if (query === 'underground') {
+      url = `https://api.audius.co/v1/tracks/trending/underground?limit=${limit}&app_name=ReyTune`;
+    } else {
+      url = `https://api.audius.co/v1/tracks/search?query=${encodeURIComponent(query)}&limit=${limit}&app_name=ReyTune`;
+    }
     const audiusRes = await fetchJsonWithTimeout<{ data?: RawAudiusTrack[] }>(
       url,
-      4000
+      4500
     );
-    if (!audiusRes || !Array.isArray(audiusRes.data)) return [];
-    return audiusRes.data
+    if (!audiusRes || !Array.isArray(audiusRes.data)) return cached?.tracks ?? [];
+    const tracks = audiusRes.data
       .map(normalizeAudiusTrack)
-      .filter((t): t is Track => t !== null && t.durationSec >= 90);
+      .filter((t): t is Track => t !== null && t.durationSec >= 60);
+    registerDiscoveredTracks(tracks);
+    if (tracks.length > 0) {
+      audiusFeedCache.set(cacheKey, { updatedAt: now, tracks });
+    }
+    return tracks;
   } catch {
-    return [];
+    return cached?.tracks ?? [];
   }
 }
 
@@ -1208,22 +1500,32 @@ async function fetchJamendoTracks(options: {
   tags?: string;
   order?: string;
   limit?: number;
-}): Promise<{ configured: boolean; tracks: Track[]; error?: string }> {
+}): Promise<{ configured: boolean; tracks: Track[]; error?: string; viaOpenverse?: boolean }> {
   const clientId = getJamendoClientId();
+  const q = (options.query || '').trim();
+  const tags = (options.tags || '').trim();
+  const limit = Math.min(50, Math.max(1, options.limit || 25));
+
+  // Zero-Key Automatic Fallback: Use Openverse API (source=jamendo) to serve real full-length Jamendo MP3s without an API key!
   if (!clientId) {
+    const ovQuery = (q || tags || '').trim();
+    const openverseJamendo = await fetchOpenverseTracks({
+      query: ovQuery,
+      source: 'jamendo',
+      limit: Math.min(20, limit),
+    });
     return {
-      configured: false,
-      tracks: [],
+      configured: true,
+      viaOpenverse: true,
+      tracks: openverseJamendo,
       error:
-        'JAMENDO_CLIENT_ID belum diatur. Tambahkan JAMENDO_CLIENT_ID dari devportal.jamendo.com di Secrets untuk memuat lagu Jamendo.',
+        openverseJamendo.length === 0
+          ? 'Gagal memuat katalog Openverse/Jamendo saat ini. Coba muat ulang.'
+          : undefined,
     };
   }
 
-  const q = (options.query || '').trim();
-  const tags = (options.tags || '').trim();
   const order = (options.order || (q ? 'relevance' : 'popularity_month')).trim();
-  const limit = Math.min(50, Math.max(1, options.limit || 25));
-
   const cacheKey = `${q.toLowerCase()}::${tags.toLowerCase()}::${order}::${limit}`;
   const cached = jamendoQueryCache.get(cacheKey);
   const now = Date.now();
@@ -1262,10 +1564,7 @@ async function fetchJamendoTracks(options: {
       .map((item, idx) => normalizeJamendoTrack(item, idx))
       .filter((t): t is Track => t !== null);
 
-    for (const t of tracks) {
-      ALL_INDEXED_MAP.set(t.id, t);
-    }
-
+    registerDiscoveredTracks(tracks);
     jamendoQueryCache.set(cacheKey, { updatedAt: now, tracks });
     return { configured: true, tracks };
   } catch {
@@ -1304,9 +1603,7 @@ async function fetchRadioBrowserStations(
           .filter((t): t is Track => t !== null)
       );
       if (tracks.length > 0) {
-        for (const t of tracks) {
-          ALL_INDEXED_MAP.set(t.id, t);
-        }
+        registerDiscoveredTracks(tracks);
         radioStationCache.set(code, { updatedAt: now, tracks });
         return tracks;
       }
@@ -1351,12 +1648,11 @@ function resolveSongAudioLocation(
   const cleanId = (trackId || '').trim();
   const safeBasename = cleanId.replace(/[^a-zA-Z0-9_-]/g, '');
   if (safeBasename) {
-    const staticDiskPath = path.resolve(
-      __dirname,
-      'public/audio/tracks',
-      `${safeBasename}.mp3`
-    );
-    if (fs.existsSync(staticDiskPath)) {
+    const staticDiskPath = path.resolve(STATIC_TRACKS_DIR, `${safeBasename}.mp3`);
+    if (
+      staticDiskPath.startsWith(STATIC_TRACKS_DIR + path.sep) &&
+      fs.existsSync(staticDiskPath)
+    ) {
       return { staticPath: staticDiskPath };
     }
   }
@@ -1371,7 +1667,10 @@ function resolveSongAudioLocation(
         'public',
         indexed.audioUrl.replace(/^\/+/, '')
       );
-      if (fs.existsSync(localPath)) {
+      if (
+        localPath.startsWith(PUBLIC_AUDIO_DIR + path.sep) &&
+        fs.existsSync(localPath)
+      ) {
         return { staticPath: localPath };
       }
     }
@@ -1380,7 +1679,7 @@ function resolveSongAudioLocation(
     }
   }
 
-  if (explicitAudioUrl && isSafeAudioProxyUrl(explicitAudioUrl)) {
+  if (explicitAudioUrl && isSafeAudioProxyUrl(explicitAudioUrl, APPROVED_STREAM_URLS)) {
     return { upstreamUrl: explicitAudioUrl };
   }
   if (cleanId.startsWith('gdrive-')) {
@@ -2196,7 +2495,7 @@ self.addEventListener('activate', (event) => {
     });
   });
 
-  // Direct Jamendo Music API v3.0 endpoint
+  // Direct Jamendo / Openverse Free MP3 endpoint (Zero API key fallback!)
   app.get('/api/music/jamendo', async (req, res) => {
     const q = String(req.query.q || '').trim();
     const tags = String(req.query.tags || req.query.tag || '').trim();
@@ -2209,12 +2508,70 @@ self.addEventListener('activate', (event) => {
     });
     res.json({
       configured: result.configured,
+      viaOpenverse: Boolean(result.viaOpenverse),
       query: q,
       tags,
       count: result.tracks.length,
       tracks: result.tracks,
-      live: result.configured && !result.error,
+      live: result.tracks.length > 0 || (result.configured && !result.error),
       error: result.error,
+    });
+  });
+
+  // Direct Openverse Creative Commons Free Audio endpoint (Zero API Key)
+  app.get('/api/music/openverse', async (req, res) => {
+    const q = String(req.query.q || 'chill acoustic pop').trim();
+    const source = String(req.query.source || '').trim();
+    const limit = Number(req.query.limit || 20) || 20;
+    const tracks = await fetchOpenverseTracks({ query: q, source, limit });
+    res.json({
+      query: q,
+      count: tracks.length,
+      tracks,
+      live: tracks.length > 0,
+    });
+  });
+
+  // Direct Internet Archive Open Audio endpoint (Zero API Key, 100% Free Full MP3)
+  app.get('/api/music/archive', async (req, res) => {
+    const q = String(req.query.q || '').trim();
+    const limit = Number(req.query.limit || 18) || 18;
+    const tracks = await fetchInternetArchiveTracks(q, limit);
+    res.json({
+      query: q,
+      count: tracks.length,
+      tracks,
+      live: tracks.length > 0,
+    });
+  });
+
+  // Direct Audius Free Streaming API endpoint (Zero API Key, genre & search support)
+  app.get('/api/music/audius', async (req, res) => {
+    const q = String(req.query.q || 'trending').trim();
+    const genre = String(req.query.genre || '').trim();
+    const limit = Number(req.query.limit || 25) || 25;
+    const tracks = await fetchAudiusTracks(q, limit, genre);
+    res.json({
+      query: q,
+      genre,
+      count: tracks.length,
+      tracks,
+      live: tracks.length > 0,
+    });
+  });
+
+  // Direct Hearthis.at Free Streaming API endpoint (Zero API Key, spam-filtered)
+  app.get('/api/music/hearthis', async (req, res) => {
+    const q = String(req.query.q || '').trim();
+    const limit = Number(req.query.limit || 25) || 25;
+    const tracks = q
+      ? await searchHearthisTracks(q, limit)
+      : await fetchHearthisFeedTracks('popular', limit);
+    res.json({
+      query: q,
+      count: tracks.length,
+      tracks,
+      live: tracks.length > 0,
     });
   });
 
@@ -2320,6 +2677,7 @@ self.addEventListener('activate', (event) => {
       req.query.q || 'Lagu Pop Indonesia Terpopuler Viral'
     ).trim();
     const liveYtm = await searchYouTubeMusicApi(q, 25);
+    registerDiscoveredTracks(liveYtm);
     const combined = dedupeTracks([
       ...liveYtm,
       ...YOUTUBE_MUSIC_AND_ONLINE_TRACKS,
@@ -2346,7 +2704,7 @@ self.addEventListener('activate', (event) => {
         title,
         artist
       );
-      if (!resolvedUrl || !isSafeAudioProxyUrl(resolvedUrl)) {
+      if (!resolvedUrl || !isSafeAudioProxyUrl(resolvedUrl, APPROVED_STREAM_URLS)) {
         res.status(404).json({ error: 'Could not resolve audio stream' });
         return;
       }
@@ -2365,16 +2723,17 @@ self.addEventListener('activate', (event) => {
     }
   });
 
-  // Discover complete music catalog (Google Drive + YouTube Music + Jamendo API)
+  // Discover complete music catalog (Google Drive + YouTube Music + Audius + Hearthis + Openverse/Jamendo + Internet Archive + Radio)
   app.get('/api/music/discover', async (req, res) => {
     const genre = String(req.query.genre || 'all')
       .trim()
       .toLowerCase();
+    const audiusGenre = String(req.query.audiusGenre || '').trim();
     const folderInput = String(
       req.query.folder || DEFAULT_DRIVE_FOLDER_ID
     ).trim();
     const refresh = req.query.refresh === '1';
-    const jamendoConfigured = Boolean(getJamendoClientId());
+    const jamendoConfigured = true; // Always available via Jamendo API or Openverse zero-key index
 
     try {
       if (genre === 'radio') {
@@ -2392,10 +2751,11 @@ self.addEventListener('activate', (event) => {
       }
 
       if (genre === 'audius') {
-        const audiusTracks = await fetchAudiusTracks('trending', 25);
-        for (const t of audiusTracks) {
-          ALL_INDEXED_MAP.set(t.id, t);
-        }
+        const audiusTracks = await fetchAudiusTracks(
+          audiusGenre === 'underground' ? 'underground' : 'trending',
+          28,
+          audiusGenre === 'underground' ? '' : audiusGenre
+        );
         res.json({
           folderId: DEFAULT_DRIVE_FOLDER_ID,
           totalDriveTracks: DRIVE_FOLDER_TRACKS.length,
@@ -2408,10 +2768,38 @@ self.addEventListener('activate', (event) => {
         return;
       }
 
-      if (genre === 'jamendo') {
+      if (genre === 'hearthis') {
+        const hearthisTracks = await fetchHearthisFeedTracks('popular', 28);
+        res.json({
+          folderId: DEFAULT_DRIVE_FOLDER_ID,
+          totalDriveTracks: DRIVE_FOLDER_TRACKS.length,
+          totalYtMusicTracks: YOUTUBE_MUSIC_AND_ONLINE_TRACKS.length,
+          totalJamendoTracks: 0,
+          jamendoConfigured,
+          tracks: hearthisTracks,
+          live: hearthisTracks.length > 0,
+        });
+        return;
+      }
+
+      if (genre === 'archive') {
+        const archiveTracks = await fetchInternetArchiveTracks('', 20);
+        res.json({
+          folderId: DEFAULT_DRIVE_FOLDER_ID,
+          totalDriveTracks: DRIVE_FOLDER_TRACKS.length,
+          totalYtMusicTracks: YOUTUBE_MUSIC_AND_ONLINE_TRACKS.length,
+          totalJamendoTracks: 0,
+          jamendoConfigured,
+          tracks: archiveTracks,
+          live: archiveTracks.length > 0,
+        });
+        return;
+      }
+
+      if (genre === 'jamendo' || genre === 'openverse') {
         const jamendoRes = await fetchJamendoTracks({
           order: 'popularity_month',
-          limit: 30,
+          limit: 25,
         });
         res.json({
           folderId: DEFAULT_DRIVE_FOLDER_ID,
@@ -2421,22 +2809,22 @@ self.addEventListener('activate', (event) => {
           jamendoConfigured: jamendoRes.configured,
           jamendoError: jamendoRes.error,
           tracks: jamendoRes.tracks,
-          live: jamendoRes.configured && !jamendoRes.error,
+          live: jamendoRes.tracks.length > 0,
         });
         return;
       }
 
-      const shouldFetchJamendoExtras =
-        jamendoConfigured &&
+      const shouldFetchDirectJamendo =
+        Boolean(getJamendoClientId()) &&
         (genre === 'all' ||
           genre === 'trending' ||
           genre === 'pop' ||
           genre === 'chill' ||
           genre === 'lofi');
 
-      const [driveResult, jamendoExtraRes] = await Promise.all([
+      const [driveResult, jamendoExtraRes, audiusExtras] = await Promise.all([
         getDriveFolderTracks(folderInput, refresh),
-        shouldFetchJamendoExtras
+        shouldFetchDirectJamendo
           ? fetchJamendoTracks({
               tags:
                 genre === 'pop'
@@ -2445,9 +2833,14 @@ self.addEventListener('activate', (event) => {
                   ? 'chillout'
                   : undefined,
               order: 'popularity_month',
-              limit: 15,
+              limit: 12,
             })
-          : Promise.resolve({ configured: jamendoConfigured, tracks: [] as Track[] }),
+          : Promise.resolve({ configured: true, tracks: [] as Track[] }),
+        genre === 'chill' || genre === 'lofi'
+          ? fetchAudiusTracks('trending', 10, 'Lo-Fi')
+          : genre === 'trending'
+          ? fetchAudiusTracks('trending', 10)
+          : Promise.resolve([] as Track[]),
       ]);
 
       const filtered = filterCatalogByGenre(
@@ -2469,8 +2862,11 @@ self.addEventListener('activate', (event) => {
       const combined = dedupeTracks([
         ...onlineExtras,
         ...filtered,
+        ...audiusExtras,
         ...jamendoExtraRes.tracks,
       ]);
+      registerDiscoveredTracks(combined);
+
       res.json({
         folderId: driveResult.folderId,
         totalDriveTracks: driveResult.tracks.length,
@@ -2493,19 +2889,19 @@ self.addEventListener('activate', (event) => {
         totalYtMusicTracks: YOUTUBE_MUSIC_AND_ONLINE_TRACKS.length,
         totalJamendoTracks: 0,
         jamendoConfigured,
-        tracks: genre === 'jamendo' ? [] : fallback,
+        tracks: fallback,
         live: true,
       });
     }
   });
 
-  // Search full-length tracks across Google Drive + YouTube Music API + Jamendo API + Hearthis.at + Audius
+  // Search full-length tracks across Google Drive + Audius + Hearthis.at + Jamendo/Openverse CC + Internet Archive + YouTube Music
   app.get('/api/music/search', async (req, res) => {
     const q = String(req.query.q || '').trim();
     const folderInput = String(
       req.query.folder || DEFAULT_DRIVE_FOLDER_ID
     ).trim();
-    const jamendoConfigured = Boolean(getJamendoClientId());
+    const jamendoConfigured = true;
 
     if (!q) {
       res.json({
@@ -2528,12 +2924,14 @@ self.addEventListener('activate', (event) => {
         jamendoResult,
         hearthisTracks,
         audiusTracks,
+        archiveTracks,
       ] = await Promise.all([
         getDriveFolderTracks(folderInput, false),
-        searchYouTubeMusicApi(q, 18),
-        fetchJamendoTracks({ query: q, limit: 15 }),
-        searchHearthisTracks(q, 10),
-        fetchAudiusTracks(q, 10),
+        searchYouTubeMusicApi(q, 14),
+        fetchJamendoTracks({ query: q, limit: 12 }),
+        searchHearthisTracks(q, 12),
+        fetchAudiusTracks(q, 14),
+        fetchInternetArchiveTracks(q, 8),
       ]);
 
       const driveMatches = driveResult.tracks.filter(
@@ -2557,21 +2955,34 @@ self.addEventListener('activate', (event) => {
           t.artist.toLowerCase().includes(normalizedQ)
       );
 
-      const combined = dedupeTracks([
+      // Prioritize direct, instant-playable full-length MP3 sources first
+      let combined = dedupeTracks([
         ...driveMatches,
         ...indexedYtmMatches,
+        ...audiusTracks,
         ...jamendoResult.tracks,
         ...hearthisTracks,
+        ...archiveTracks,
         ...ytmLiveTracks,
         ...localMatches,
-        ...audiusTracks,
       ]);
+
+      // If very few full-length hits matched, also include official 30s iTunes previews so user still finds mainstream songs
+      if (combined.length < 4) {
+        const itunesPreviews = await fetchItunesPreviewTracks(q, 6);
+        combined = dedupeTracks([...combined, ...itunesPreviews]);
+      }
+
+      registerDiscoveredTracks(combined);
 
       res.json({
         tracks: combined,
         driveMatchCount: driveMatches.length,
         ytMusicMatchCount: indexedYtmMatches.length + ytmLiveTracks.length,
         jamendoMatchCount: jamendoResult.tracks.length,
+        audiusMatchCount: audiusTracks.length,
+        hearthisMatchCount: hearthisTracks.length,
+        archiveMatchCount: archiveTracks.length,
         jamendoConfigured,
         live: true,
       });
@@ -2586,45 +2997,52 @@ self.addEventListener('activate', (event) => {
     }
   });
 
-  // Clean static-style MP3 route (/audio/tracks/:trackParam) for instant mobile <audio> playback
+  // Clean static-style MP3 route (/audio/tracks/:trackParam) for instant mobile <audio> playback & .mp3 downloads
   app.all('/audio/tracks/:trackParam', async (req, res) => {
     const rawParam = String(req.params.trackParam || '').replace(/\.mp3$/i, '');
     const isDownload = req.query.download === '1';
 
-    // 1. If a static MP3 file exists on disk in /public/audio/tracks/, serve it natively via sendFile (identical to /audio/midnight-rain.mp3)
+    const track = ALL_INDEXED_MAP.get(rawParam) || PRE_ENRICHED_DRIVE_MAP.get(rawParam);
+    const title = String(req.query.title || track?.title || 'Track');
+    const artist = String(req.query.artist || track?.artist || 'ReyTune');
+
+    // 1. If a static MP3 file exists on disk in /public/audio/tracks/, serve it natively (for both playback AND downloads!)
     const safeBasename = rawParam.replace(/[^a-zA-Z0-9_-]/g, '');
-    const staticDiskPath = path.resolve(
-      __dirname,
-      'public/audio/tracks',
-      `${safeBasename}.mp3`
-    );
-    if (!isDownload && safeBasename && fs.existsSync(staticDiskPath)) {
+    const staticDiskPath = path.resolve(STATIC_TRACKS_DIR, `${safeBasename}.mp3`);
+    if (
+      safeBasename &&
+      staticDiskPath.startsWith(STATIC_TRACKS_DIR + path.sep) &&
+      fs.existsSync(staticDiskPath)
+    ) {
       res.setHeader('X-Accel-Buffering', 'no');
       res.setHeader('Access-Control-Allow-Origin', '*');
+      if (isDownload) {
+        const filename = sanitizeDownloadFilename(title, artist);
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      }
       res.sendFile(staticDiskPath);
       return;
     }
 
-    const track = ALL_INDEXED_MAP.get(rawParam) || PRE_ENRICHED_DRIVE_MAP.get(rawParam);
     const queryUrl = String(req.query.url || '');
     const targetUrl =
       track && track.audioUrl.startsWith('https://')
         ? track.audioUrl
-        : isSafeAudioProxyUrl(queryUrl)
+        : isSafeAudioProxyUrl(queryUrl, APPROVED_STREAM_URLS)
         ? queryUrl
         : rawParam.startsWith('gdrive-')
         ? `https://drive.usercontent.google.com/download?id=${encodeURIComponent(rawParam.replace(/^gdrive-/, ''))}&export=download&confirm=t`
         : rawParam.startsWith('jamendo-')
         ? `https://prod-1.storage.jamendo.com/?trackid=${encodeURIComponent(rawParam.replace(/^jamendo-/, ''))}&format=mp32`
+        : rawParam.startsWith('audius-')
+        ? `https://api.audius.co/v1/tracks/${encodeURIComponent(rawParam.replace(/^audius-/, ''))}/stream?app_name=ReyTune`
         : '';
 
-    if (!targetUrl || !isSafeAudioProxyUrl(targetUrl)) {
+    if (!targetUrl || !isSafeAudioProxyUrl(targetUrl, APPROVED_STREAM_URLS)) {
       res.status(404).json({ error: 'Track audio not found' });
       return;
     }
 
-    const title = String(req.query.title || track?.title || 'Track');
-    const artist = String(req.query.artist || track?.artist || 'ReyTune');
     const isInfiniteStream = rawParam.startsWith('radio-') || track?.source === 'radio';
 
     try {
@@ -2647,7 +3065,7 @@ self.addEventListener('activate', (event) => {
     const title = String(req.query.title || indexedTrack?.title || 'Track');
     const artist = String(req.query.artist || indexedTrack?.artist || 'ReyTune');
 
-    if (!isSafeAudioProxyUrl(rawUrl)) {
+    if (!isSafeAudioProxyUrl(rawUrl, APPROVED_STREAM_URLS)) {
       res.status(400).json({ error: 'Invalid or unsupported audio URL' });
       return;
     }

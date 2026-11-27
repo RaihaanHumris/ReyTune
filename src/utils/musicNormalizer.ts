@@ -64,6 +64,48 @@ export interface RawRadioStation {
   codec?: string;
 }
 
+export interface RawOpenverseTrack {
+  id?: string;
+  title?: string;
+  creator?: string;
+  url?: string;
+  thumbnail?: string;
+  duration?: number;
+  source?: string;
+  license?: string;
+  license_version?: string;
+  genres?: string[];
+  tags?: Array<{ name?: string }>;
+  audio_set?: {
+    title?: string;
+    thumbnail?: string;
+  } | null;
+}
+
+export interface RawArchiveFile {
+  name?: string;
+  title?: string;
+  creator?: string;
+  album?: string;
+  length?: string | number;
+  size?: string | number;
+  format?: string;
+}
+
+export interface RawItunesTrack {
+  trackId?: number;
+  trackName?: string;
+  artistName?: string;
+  collectionName?: string;
+  primaryGenreName?: string;
+  trackTimeMillis?: number;
+  artworkUrl100?: string;
+  previewUrl?: string;
+}
+
+const SPAM_TITLE_REGEX =
+  /\b(slot\s*online|agen\s*slot|situs\s*slot|slot\s*gacor|gacor\s*hari\s*ini|togel|judi\s*online|sbobet|maxwin|depo\s*\d+|bo\s*togel|pragmatic\s*play|rtp\s*live|bola88|naga169|zeus\s*slot)\b/i;
+
 export interface SyncedLyricLine {
   timeSec: number;
   text: string;
@@ -119,11 +161,18 @@ export function normalizeAudiusTrack(raw: RawAudiusTrack): Track | null {
   };
 }
 
-export function normalizeHearthisTrack(raw: RawHearthisTrack): Track | null {
+export function normalizeHearthisTrack(
+  raw: RawHearthisTrack,
+  options?: { source?: 'ytmusic' | 'hearthis'; maxDurationSec?: number }
+): Track | null {
   const rawId = raw.id;
   const rawTitle = String(raw.title || '').trim();
   const dur = Math.round(Number(raw.duration || 0));
-  if (!rawId || !rawTitle || !raw.stream_url || dur < 90 || dur > 540) {
+  const maxDur = options?.maxDurationSec ?? 540;
+  if (!rawId || !rawTitle || !raw.stream_url || dur < 60 || dur > maxDur) {
+    return null;
+  }
+  if (SPAM_TITLE_REGEX.test(rawTitle)) {
     return null;
   }
 
@@ -131,7 +180,10 @@ export function normalizeHearthisTrack(raw: RawHearthisTrack): Track | null {
     .replace(/\s+[–~]\s+/g, ' - ')
     .replace(/^\d+\s*-?\s*/, '')
     .trim();
-  let artist = raw.user?.username?.trim() || 'YouTube Music & Online';
+  const trackSource = options?.source ?? 'ytmusic';
+  let artist =
+    raw.user?.username?.trim() ||
+    (trackSource === 'hearthis' ? 'Hearthis Artist' : 'YouTube Music & Online');
   let title = norm;
 
   if (norm.includes(' - ')) {
@@ -153,17 +205,191 @@ export function normalizeHearthisTrack(raw: RawHearthisTrack): Track | null {
     FALLBACK_COVERS[1];
 
   return {
-    id: `ytm-ht-${rawId}`,
+    id: trackSource === 'hearthis' ? `hearthis-${rawId}` : `ytm-ht-${rawId}`,
     title: title || norm,
     artist,
     album: `${artist} - Online MP3`,
-    genre: raw.genre?.trim() || 'YouTube Music',
+    genre: raw.genre?.trim() || (trackSource === 'hearthis' ? 'Hearthis Mix' : 'YouTube Music'),
     durationSec: dur,
     fileSizeMb: estimateMp3SizeMb(dur),
     coverUrl,
-    audioUrl: raw.stream_url,
-    source: 'ytmusic',
+    audioUrl: raw.stream_url.replace(/^https:\/\/hearthis\.app\//i, 'https://hearthis.at/'),
+    source: trackSource,
     isPreview: false,
+  };
+}
+
+export function normalizeOpenverseTrack(
+  raw: RawOpenverseTrack,
+  index = 0
+): Track | null {
+  const id = String(raw.id || '').trim();
+  const rawTitle = String(raw.title || '').trim();
+  const audioUrl = String(raw.url || '').trim();
+  if (!id || !rawTitle || !audioUrl.startsWith('https://')) return null;
+
+  // Openverse returns duration in milliseconds
+  const rawDurMs = Number(raw.duration || 0);
+  const durationSec =
+    rawDurMs > 1000
+      ? Math.round(rawDurMs / 1000)
+      : rawDurMs > 0
+      ? Math.round(rawDurMs)
+      : 195;
+
+  if (durationSec < 45 || durationSec > 900) return null;
+
+  const creator = String(raw.creator || '').trim() || 'Creative Commons Artist';
+  let title = rawTitle;
+  // Strip redundant "Artist - " prefix when creator matches
+  if (
+    creator !== 'Creative Commons Artist' &&
+    title.toLowerCase().startsWith(`${creator.toLowerCase()} - `)
+  ) {
+    title = title.slice(creator.length + 3).trim() || rawTitle;
+  }
+
+  const rawGenre =
+    raw.genres?.[0]?.trim() ||
+    raw.tags?.find((t) => t.name && t.name.length > 2)?.name?.trim() ||
+    'Free CC Music';
+  const genre = rawGenre.charAt(0).toUpperCase() + rawGenre.slice(1);
+
+  const coverUrl =
+    (raw.thumbnail && raw.thumbnail.startsWith('https://') ? raw.thumbnail : '') ||
+    (raw.audio_set?.thumbnail && raw.audio_set.thumbnail.startsWith('https://')
+      ? raw.audio_set.thumbnail
+      : '') ||
+    FALLBACK_COVERS[index % FALLBACK_COVERS.length];
+
+  const isJamendo = raw.source === 'jamendo' || audioUrl.includes('jamendo.com');
+  const licenseLabel = raw.license
+    ? `CC ${raw.license.toUpperCase()}${raw.license_version ? ` ${raw.license_version}` : ''}`
+    : 'Creative Commons';
+
+  return {
+    id: `openverse-${id}`,
+    title,
+    artist: creator,
+    album: raw.audio_set?.title?.trim() || (isJamendo ? 'Jamendo Free CC' : 'Openverse Free Audio'),
+    genre,
+    durationSec,
+    fileSizeMb: estimateMp3SizeMb(durationSec),
+    coverUrl,
+    audioUrl,
+    source: isJamendo ? 'jamendo' : 'openverse',
+    license: licenseLabel,
+    isPreview: false,
+  };
+}
+
+export function parseArchiveDuration(raw: string | number | undefined): number {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return Math.round(raw);
+  }
+  const str = String(raw || '').trim();
+  if (!str) return 0;
+  if (/^\d+(?:\.\d+)?$/.test(str)) {
+    return Math.round(Number(str));
+  }
+  const parts = str.split(':').map(Number);
+  if (parts.every((n) => Number.isFinite(n))) {
+    if (parts.length === 2) return parts[0] * 60 + Math.round(parts[1]);
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + Math.round(parts[2]);
+  }
+  return 0;
+}
+
+export function normalizeArchiveTrack(
+  identifier: string,
+  file: RawArchiveFile,
+  fallbackMeta: { title?: string; creator?: string; album?: string },
+  index = 0
+): Track | null {
+  const fileName = String(file.name || '').trim();
+  if (!identifier || !fileName || !/\.mp3$/i.test(fileName)) return null;
+
+  const sizeBytes = Number(file.size || 0);
+  if (sizeBytes > 0 && (sizeBytes < 300_000 || sizeBytes > 30 * 1024 * 1024)) {
+    return null;
+  }
+
+  const parsedDur = parseArchiveDuration(file.length);
+  const durationSec =
+    parsedDur >= 45 && parsedDur <= 900
+      ? parsedDur
+      : sizeBytes > 0
+      ? Math.max(60, Math.min(600, Math.round((sizeBytes * 8) / 160_000)))
+      : 210;
+
+  const cleanFileName = fileName
+    .split('/')
+    .pop()!
+    .replace(/\.mp3$/i, '')
+    .replace(/^\d+[\s._-]+/, '')
+    .replace(/_/g, ' ')
+    .trim();
+
+  const title = (file.title || '').trim() || cleanFileName || fallbackMeta.title || identifier;
+  const artist =
+    (file.creator || '').trim() ||
+    (Array.isArray(fallbackMeta.creator)
+      ? fallbackMeta.creator[0]
+      : fallbackMeta.creator || ''
+    ).trim() ||
+    'Internet Archive Artist';
+  const album =
+    (file.album || '').trim() || (fallbackMeta.title || 'Internet Archive Audio').trim();
+
+  const encodedPath = fileName
+    .split('/')
+    .map((seg) => encodeURIComponent(seg))
+    .join('/');
+  const audioUrl = `https://archive.org/download/${encodeURIComponent(identifier)}/${encodedPath}`;
+  const coverUrl = `https://archive.org/services/img/${encodeURIComponent(identifier)}`;
+
+  const slug = fileName.replace(/[^a-zA-Z0-9_-]/g, '').slice(-24) || String(index);
+  const fileSizeMb =
+    sizeBytes > 0
+      ? Math.max(0.4, Math.round((sizeBytes / (1024 * 1024)) * 10) / 10)
+      : estimateMp3SizeMb(durationSec);
+
+  return {
+    id: `archive-${identifier.slice(0, 24)}-${slug}`,
+    title,
+    artist,
+    album,
+    genre: 'Archive Free MP3',
+    durationSec,
+    fileSizeMb,
+    coverUrl,
+    audioUrl,
+    source: 'archive',
+    license: 'Open / Public Domain',
+    isPreview: false,
+  };
+}
+
+export function normalizeItunesTrack(raw: RawItunesTrack, index = 0): Track | null {
+  if (!raw.trackId || !raw.trackName || !raw.previewUrl) return null;
+  if (!raw.previewUrl.startsWith('https://')) return null;
+
+  const coverUrl = raw.artworkUrl100
+    ? raw.artworkUrl100.replace('100x100bb', '600x600bb')
+    : FALLBACK_COVERS[index % FALLBACK_COVERS.length];
+
+  return {
+    id: `itunes-${raw.trackId}`,
+    title: raw.trackName.trim(),
+    artist: raw.artistName?.trim() || 'Artist',
+    album: raw.collectionName?.trim() || 'iTunes Preview',
+    genre: raw.primaryGenreName?.trim() || 'Pop',
+    durationSec: 30,
+    fileSizeMb: 0.7,
+    coverUrl,
+    audioUrl: raw.previewUrl,
+    source: 'itunes',
+    isPreview: true,
   };
 }
 
@@ -541,24 +767,67 @@ export function normalizeDriveTrack(
   };
 }
 
-export function isSafeAudioProxyUrl(rawUrl: string): boolean {
+const TRUSTED_AUDIO_HOST_SUFFIXES = [
+  'drive.usercontent.google.com',
+  'drive.google.com',
+  'googleusercontent.com',
+  'audius.co',
+  'audius.org',
+  'hearthis.at',
+  'hearthis.app',
+  'jamendo.com',
+  'archive.org',
+  'openverse.org',
+  'upload.wikimedia.org',
+  'cdn.freesound.org',
+  'raw.githubusercontent.com',
+  'github.com',
+  'audio-ssl.itunes.apple.com',
+  'itunes.apple.com',
+];
+
+function isPrivateOrLocalHostname(host: string): boolean {
+  const cleaned = host.replace(/^\[|\]$/g, '').toLowerCase();
+  if (
+    !cleaned ||
+    cleaned === 'localhost' ||
+    cleaned === '0.0.0.0' ||
+    cleaned === '127.0.0.1' ||
+    cleaned === '::1' ||
+    cleaned === '::' ||
+    cleaned.endsWith('.local') ||
+    cleaned.endsWith('.internal') ||
+    /^127\./.test(cleaned) ||
+    /^10\./.test(cleaned) ||
+    /^192\.168\./.test(cleaned) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(cleaned) ||
+    /^169\.254\./.test(cleaned) ||
+    /^0\./.test(cleaned) ||
+    /^(fc|fd|fe80)/i.test(cleaned) ||
+    /^::ffff:(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|0\.)/i.test(cleaned)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function isSafeAudioProxyUrl(
+  rawUrl: string,
+  approvedUrls?: ReadonlySet<string>
+): boolean {
   try {
     const parsed = new URL(rawUrl);
     if (parsed.protocol !== 'https:') return false;
     const host = parsed.hostname.toLowerCase();
-    if (
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      host === '::1' ||
-      host.endsWith('.local') ||
-      /^10\./.test(host) ||
-      /^192\.168\./.test(host) ||
-      /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-      /^169\.254\./.test(host)
-    ) {
+    if (isPrivateOrLocalHostname(host)) {
       return false;
     }
-    return true;
+    if (approvedUrls && approvedUrls.has(rawUrl)) {
+      return true;
+    }
+    return TRUSTED_AUDIO_HOST_SUFFIXES.some(
+      (suffix) => host === suffix || host.endsWith(`.${suffix}`)
+    );
   } catch {
     return false;
   }
@@ -566,7 +835,8 @@ export function isSafeAudioProxyUrl(rawUrl: string): boolean {
 
 export function sanitizeDownloadFilename(title: string, artist: string): string {
   const raw = `${artist} - ${title}`
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
+    .replace(/[<>:"/\\|?*;'\r\n\x00-\x1f]/g, '')
+    .replace(/\s+/g, ' ')
     .trim();
   const safe = raw.slice(0, 80) || 'reytune-track';
   return `${safe}.mp3`;
